@@ -1,0 +1,25 @@
+{
+  "users": {
+    "admin": {
+      "password": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",
+      "role": "admin",
+      "name": "Administrador",
+      "created_at": "2025-11-09T22:10:27.209664",
+      "permissions": [
+        "inventory",
+        "payroll",
+        "reports",
+        "user_management"
+      ]
+    },
+    "empleado1": {
+      "password": "e03d3ec8d5035f8721f5dc64546e59ed790dbcb3b7b598fe57057ccd7b683b00",
+      "role": "employee",
+      "name": "Empleado 1",
+      "created_at": "2025-11-09T22:10:27.209664",
+      "permissions": [
+        "inventory"
+      ]
+    }
+  }
+}

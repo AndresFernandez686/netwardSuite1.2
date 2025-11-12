@@ -1,0 +1,22 @@
+{
+  "version": "1.0",
+  "mermas_por_tienda": {
+    "T001": [
+      {
+        "id": 1,
+        "fecha": "2025-11-03",
+        "hora": "22:03:35",
+        "tienda_id": "T001",
+        "usuario": "empleado_test",
+        "categoria": "Impulsivo",
+        "producto": "Alfajor Almendrado",
+        "cantidad": 2,
+        "motivo": "Ruptura",
+        "observaciones": "Prueba del sistema",
+        "timestamp": "2025-11-03T22:03:35.087428"
+      }
+    ]
+  },
+  "ultima_actualizacion": "2025-11-03T22:03:35.087428",
+  "total_registros": 1
+}

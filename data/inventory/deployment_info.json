@@ -1,0 +1,12 @@
+{
+  "name": "Netward v1.5",
+  "description": "Sistema de gestión de inventario modular",
+  "main_file": "main.py",
+  "python_version": "3.9+",
+  "streamlit_version": "1.28.0+",
+  "deployment_ready": true,
+  "urls": {
+    "github": "https://github.com/AndresFernandez686/Netward1.4",
+    "streamlit_cloud": "https://share.streamlit.io"
+  }
+}

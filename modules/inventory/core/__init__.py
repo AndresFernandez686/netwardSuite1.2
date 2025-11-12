@@ -1,0 +1,1 @@
+# Paquete core - Lógica de negocio del sistema

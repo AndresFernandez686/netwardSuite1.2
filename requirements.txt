@@ -1,0 +1,24 @@
+# BusinessSuite - Suite de Aplicaciones de Negocio
+# Dependencias combinadas de ambos módulos
+
+# Core dependencies
+streamlit>=1.28.0
+pandas>=2.0.0
+python-dateutil>=2.8.0
+
+# Excel processing
+openpyxl>=3.0.0
+
+# PDF processing (para módulo de nómina)
+PyPDF2
+pdfplumber
+
+# Data visualization
+matplotlib
+
+# Text processing
+regex
+
+# Additional utilities for future enhancements
+numpy
+plotly
