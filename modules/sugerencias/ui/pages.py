@@ -833,147 +833,271 @@ class Pages:
         # ==================== PASO 2: CARGA DE INVENTARIO ====================
         st.subheader("📦 Paso 2: Carga tu Inventario Actual")
         
-        st.markdown("""
-        Carga dos archivos Excel separados para mejor organización:
-        - **🍦 Productos Impulsivos**: Palitos, alfajores, bombones, tortas, etc.
-        - **⚖️ Productos a Granel (Por Kilos)**: Helados en cajas de 7.8kg
-        """)
+        # Selector de modo de carga
+        st.markdown("#### 🔌 Selecciona el Método de Carga")
         
-        # Tabs para organizar las dos cargas
-        tab1, tab2 = st.tabs(["🍦 Impulsivos", "⚖️ Por Kilos (Granel)"])
+        load_mode = st.radio(
+            "¿Cómo deseas cargar el inventario?",
+            options=["🔗 Conexión Directa al Inventario (Recomendado)", "📤 Subir Archivo Excel (Manual)"],
+            index=0,
+            key="inventory_load_mode",
+            help="""
+            - **Conexión Directa**: Lee automáticamente del módulo de Inventario (sin errores, tiempo real)
+            - **Subir Excel**: Método manual tradicional (puede tener errores de formato)
+            """
+        )
         
         # Variables para almacenar ambos inventarios
         inventory_impulsivos = None
         inventory_granel = None
-        
-        # ========== TAB 1: PRODUCTOS IMPULSIVOS ==========
-        with tab1:
-            st.markdown("### 🍦 Productos Impulsivos")
-            st.caption("Palitos, alfajores, bombones, tortas, tentación, familiar, etc.")
-            
-            # Ejemplo de formato
-            with st.expander("📋 Ver ejemplo de formato"):
-                example_data = {
-                    'Producto': ['Alfajor Almendrado', 'Palito Bombon', 'Tentacion Chocolate'],
-                    'Bultos': [3, 0, 1],
-                    'Unidad': [3, 4, 3],
-                    'Estado Stock': ['STOCK OK', 'STOCK BAJO', 'STOCK BAJO']
-                }
-                if PANDAS_AVAILABLE:
-                    import pandas as pd
-                    st.dataframe(pd.DataFrame(example_data), use_container_width=True)
-                else:
-                    st.write(example_data)
-            
-            # Upload de impulsivos
-            uploaded_impulsivos = st.file_uploader(
-                "📤 Selecciona archivo de Productos Impulsivos:",
-                type=['xlsx', 'xls', 'csv'],
-                help="Sube un archivo Excel con productos impulsivos",
-                key="inventory_impulsivos_uploader"
-            )
-            
-            if uploaded_impulsivos is not None:
-                inventory_impulsivos = _process_inventory_file(uploaded_impulsivos, "Impulsivos")
-        
-        # ========== TAB 2: PRODUCTOS A GRANEL ==========
-        with tab2:
-            st.markdown("### ⚖️ Productos a Granel (Por Kilos)")
-            st.caption("Helados en cajas de 7.8kg: vainilla, chocolate, frutilla, etc.")
-            
-            # Ejemplo de formato
-            with st.expander("📋 Ver ejemplo de formato GRANEL"):
-                st.info("**Formato especial para Granel:**\n- Cajas Cerradas: cada una pesa 7.8kg\n- Kgs Abiertas: peso de la caja abierta")
-                example_data_granel = {
-                    'Estado': ['STOCK OK', 'MEDIO', 'SIN STOCK'],
-                    'Producto': ['Chocolate con Almendra', 'Crema Americana', 'Dulce de Leche con Brownie'],
-                    'Cajas Cerradas': [1, 1, 0],
-                    'Cajas Abiertas': [1, 1, 0],
-                    'Kgs Abiertas': [5.3, 6.2, 0],
-                    'Total Kgs': [13.1, 14.0, 0]
-                }
-                if PANDAS_AVAILABLE:
-                    import pandas as pd
-                    st.dataframe(pd.DataFrame(example_data_granel), use_container_width=True)
-                    st.caption("📌 **Total Kgs** = (Cajas Cerradas × 7.8kg) + Kgs Abiertas")
-                else:
-                    st.write(example_data_granel)
-            
-            # Upload de granel
-            uploaded_granel = st.file_uploader(
-                "📤 Selecciona archivo de Productos a Granel:",
-                type=['xlsx', 'xls', 'csv'],
-                help="Sube un archivo Excel con productos a granel (por kilos)",
-                key="inventory_granel_uploader"
-            )
-            
-            if uploaded_granel is not None:
-                inventory_granel = _process_inventory_file(uploaded_granel, "Granel")
-        
-        # Combinar ambos inventarios O permitir seleccionar
         current_inventory = None
-        tipo_sugerencia = None
         
-        if inventory_impulsivos or inventory_granel:
-            st.divider()
-            st.markdown("### 📊 Resumen y Tipo de Sugerencia")
+        if load_mode.startswith("🔗"):
+            # ==================== MODO: CONEXIÓN DIRECTA ====================
+            st.markdown("---")
+            st.markdown("### 🔌 Conexión Directa con Módulo de Inventario")
             
-            # Mostrar resumen
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                total_productos = (len(inventory_impulsivos) if inventory_impulsivos else 0) + (len(inventory_granel) if inventory_granel else 0)
-                st.metric("📦 Total productos", total_productos)
-            with col2:
-                if PANDAS_AVAILABLE:
-                    import pandas as pd
-                    total_items = []
-                    if inventory_impulsivos:
-                        total_items.extend(inventory_impulsivos)
-                    if inventory_granel:
-                        total_items.extend(inventory_granel)
-                    df_total = pd.DataFrame(total_items)
-                    total_bultos = df_total['Bultos'].sum()
-                    st.metric("📦 Total bultos", f"{total_bultos:.0f}")
-            with col3:
-                impulsivos_count = len(inventory_impulsivos) if inventory_impulsivos else 0
-                st.metric("🍦 Impulsivos", impulsivos_count)
-            with col4:
-                granel_count = len(inventory_granel) if inventory_granel else 0
-                st.metric("⚖️ Granel", granel_count)
+            try:
+                from ..ui.inventory_connection import inventory_connection_ui
+                
+                # Determinar tienda_id desde el store seleccionado
+                # Mapear el ID del store de sugerencias al ID de tienda del inventario
+                # Por ahora usamos "T001" como default, pero idealmente mapearíamos correctamente
+                tienda_inventory_id = "T001"  # TODO: Mapear correctamente con configuración
+                
+                # Mostrar estado de conexión
+                is_connected = inventory_connection_ui.render_connection_status(tienda_inventory_id)
+                
+                if is_connected:
+                    st.success("✅ **Inventario conectado exitosamente!**")
+                    
+                    # Botón para forzar sincronización
+                    col1, col2, col3 = st.columns([1, 1, 2])
+                    with col1:
+                        if st.button("🔄 Sincronizar Ahora", use_container_width=True):
+                            with st.spinner("Sincronizando..."):
+                                from ..services.inventory_sync_service import inventory_sync_service
+                                success, message = inventory_sync_service.force_sync(tienda_inventory_id)
+                                if success:
+                                    st.success(message)
+                                    st.rerun()
+                                else:
+                                    st.error(message)
+                    
+                    with col2:
+                        if st.button("👁️ Ver Detalles", key="toggle_inventory_preview"):
+                            st.session_state.show_inventory_preview = not st.session_state.get("show_inventory_preview", False)
+                    
+                    # Vista previa opcional
+                    if st.session_state.get("show_inventory_preview", False):
+                        inventory_connection_ui.render_inventory_preview(tienda_inventory_id)
+                    
+                    # Leer inventario sincronizado
+                    from ..services.inventory_sync_service import inventory_sync_service
+                    synced_inventory = inventory_sync_service.read_inventory_from_file(tienda_inventory_id)
+                    
+                    # Convertir inventario sincronizado al formato esperado por el motor de sugerencias
+                    inventory_impulsivos = []
+                    inventory_granel = []
+                    
+                    # Procesar impulsivos
+                    for producto_key, datos in synced_inventory.get("impulsivo", {}).items():
+                        inventory_impulsivos.append({
+                            "Producto": datos.get("producto_original", producto_key),
+                            "Bultos": datos["bultos"],
+                            "Unidad": datos.get("unidad", 0),
+                            "Estado Stock": datos["estado"]
+                        })
+                    
+                    # Procesar granel
+                    for producto_key, datos in synced_inventory.get("granel", {}).items():
+                        # Para granel, el estado ya está calculado
+                        inventory_granel.append({
+                            "Producto": datos.get("producto_original", producto_key),
+                            "Bultos": datos["bultos"],
+                            "Estado Stock": datos["estado"],
+                            "Kgs": datos.get("kgs_totales", 0)
+                        })
+                    
+                    # Combinar ambos para mostrar resumen
+                    if inventory_impulsivos or inventory_granel:
+                        st.markdown("---")
+                        st.markdown("### 📊 Resumen del Inventario Sincronizado")
+                        
+                        col1, col2, col3, col4 = st.columns(4)
+                        with col1:
+                            total_productos = len(inventory_impulsivos) + len(inventory_granel)
+                            st.metric("📦 Total productos", total_productos)
+                        with col2:
+                            metadata = synced_inventory.get("metadata", {})
+                            st.metric("📦 Total bultos", metadata.get("total_bultos", 0))
+                        with col3:
+                            st.metric("🍦 Impulsivos", len(inventory_impulsivos))
+                        with col4:
+                            st.metric("⚖️ Granel", len(inventory_granel))
+                        
+                        # Auto-seleccionar tipo según lo que hay
+                        if inventory_impulsivos and inventory_granel:
+                            current_inventory = inventory_impulsivos + inventory_granel
+                            tipo_sugerencia = "Completa (Impulsivos + Granel)"
+                        elif inventory_impulsivos:
+                            current_inventory = inventory_impulsivos
+                            tipo_sugerencia = "Solo Impulsivos"
+                        elif inventory_granel:
+                            current_inventory = inventory_granel
+                            tipo_sugerencia = "Solo Granel"
+                else:
+                    st.warning("""
+                    ⚠️ **No se pudo conectar al inventario**
+                    
+                    Por favor:
+                    1. Verifica que el módulo de Inventario tenga datos cargados
+                    2. O cambia a modo "Subir Archivo Excel"
+                    """)
+                    st.stop()
+                    
+            except ImportError as e:
+                st.error(f"❌ Error importando servicio de sincronización: {e}")
+                st.info("Cambia a modo 'Subir Archivo Excel' para continuar")
+                st.stop()
+        
+        else:
+            # ==================== MODO: UPLOAD MANUAL ====================
+            st.markdown("---")
+            st.markdown("""
+            Carga dos archivos Excel separados para mejor organización:
+            - **🍦 Productos Impulsivos**: Palitos, alfajores, bombones, tortas, etc.
+            - **⚖️ Productos a Granel (Por Kilos)**: Helados en cajas de 7.8kg
+            """)
             
-            # Selector de tipo de sugerencia
-            st.markdown("#### 🎯 ¿Qué tipo de sugerencia deseas generar?")
+            # Tabs para organizar las dos cargas
+            tab1, tab2 = st.tabs(["🍦 Impulsivos", "⚖️ Por Kilos (Granel)"])
             
-            opciones_disponibles = []
-            if inventory_impulsivos:
-                opciones_disponibles.append("🍦 Solo Impulsivos")
-            if inventory_granel:
-                opciones_disponibles.append("⚖️ Solo Granel (Por Kilos)")
-            if inventory_impulsivos and inventory_granel:
-                opciones_disponibles.append("📦 Ambos (Impulsivos + Granel)")
+            # ========== TAB 1: PRODUCTOS IMPULSIVOS ==========
+            with tab1:
+                st.markdown("### 🍦 Productos Impulsivos")
+                st.caption("Palitos, alfajores, bombones, tortas, tentación, familiar, etc.")
+                
+                # Ejemplo de formato
+                with st.expander("📋 Ver ejemplo de formato"):
+                    example_data = {
+                        'Producto': ['Alfajor Almendrado', 'Palito Bombon', 'Tentacion Chocolate'],
+                        'Bultos': [3, 0, 1],
+                        'Unidad': [3, 4, 3],
+                        'Estado Stock': ['STOCK OK', 'STOCK BAJO', 'STOCK BAJO']
+                    }
+                    if PANDAS_AVAILABLE:
+                        import pandas as pd
+                        st.dataframe(pd.DataFrame(example_data), use_container_width=True)
+                    else:
+                        st.write(example_data)
+                
+                # Upload de impulsivos
+                uploaded_impulsivos = st.file_uploader(
+                    "📤 Selecciona archivo de Productos Impulsivos:",
+                    type=['xlsx', 'xls', 'csv'],
+                    help="Sube un archivo Excel con productos impulsivos",
+                    key="inventory_impulsivos_uploader"
+                )
+                
+                if uploaded_impulsivos is not None:
+                    inventory_impulsivos = _process_inventory_file(uploaded_impulsivos, "Impulsivos")
             
-            tipo_seleccionado = st.radio(
-                "Selecciona el tipo:",
-                opciones_disponibles,
-                help="Elige qué productos incluir en la sugerencia",
-                horizontal=True,
-                key="tipo_sugerencia_radio"
-            )
+            # ========== TAB 2: PRODUCTOS A GRANEL ==========
+            with tab2:
+                st.markdown("### ⚖️ Productos a Granel (Por Kilos)")
+                st.caption("Helados en cajas de 7.8kg: vainilla, chocolate, frutilla, etc.")
+                
+                # Ejemplo de formato
+                with st.expander("📋 Ver ejemplo de formato GRANEL"):
+                    st.info("**Formato especial para Granel:**\n- Cajas Cerradas: cada una pesa 7.8kg\n- Kgs Abiertas: peso de la caja abierta")
+                    example_data_granel = {
+                        'Estado': ['STOCK OK', 'MEDIO', 'SIN STOCK'],
+                        'Producto': ['Chocolate con Almendra', 'Crema Americana', 'Dulce de Leche con Brownie'],
+                        'Cajas Cerradas': [1, 1, 0],
+                        'Cajas Abiertas': [1, 1, 0],
+                        'Kgs Abiertas': [5.3, 6.2, 0],
+                        'Total Kgs': [13.1, 14.0, 0]
+                    }
+                    if PANDAS_AVAILABLE:
+                        import pandas as pd
+                        st.dataframe(pd.DataFrame(example_data_granel), use_container_width=True)
+                        st.caption("📌 **Total Kgs** = (Cajas Cerradas × 7.8kg) + Kgs Abiertas")
+                    else:
+                        st.write(example_data_granel)
+                
+                # Upload de granel
+                uploaded_granel = st.file_uploader(
+                    "📤 Selecciona archivo de Productos a Granel:",
+                    type=['xlsx', 'xls', 'csv'],
+                    help="Sube un archivo Excel con productos a granel (por kilos)",
+                    key="inventory_granel_uploader"
+                )
+                
+                if uploaded_granel is not None:
+                    inventory_granel = _process_inventory_file(uploaded_granel, "Granel")
             
-            # Preparar inventario según selección
-            if tipo_seleccionado == "🍦 Solo Impulsivos":
-                current_inventory = inventory_impulsivos
-                tipo_sugerencia = "impulsivo"
-                st.info("📋 Se generarán sugerencias SOLO para productos impulsivos")
-            elif tipo_seleccionado == "⚖️ Solo Granel (Por Kilos)":
-                current_inventory = inventory_granel
-                tipo_sugerencia = "granel"
-                st.info("📋 Se generarán sugerencias SOLO para productos a granel")
-            else:
-                current_inventory = []
+            # Combinar ambos inventarios para modo manual
+            if inventory_impulsivos or inventory_granel:
+                st.divider()
+                st.markdown("### 📊 Resumen y Tipo de Sugerencia")
+                
+                # Mostrar resumen
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    total_productos = (len(inventory_impulsivos) if inventory_impulsivos else 0) + (len(inventory_granel) if inventory_granel else 0)
+                    st.metric("📦 Total productos", total_productos)
+                with col2:
+                    if PANDAS_AVAILABLE:
+                        import pandas as pd
+                        total_items = []
+                        if inventory_impulsivos:
+                            total_items.extend(inventory_impulsivos)
+                        if inventory_granel:
+                            total_items.extend(inventory_granel)
+                        df_total = pd.DataFrame(total_items)
+                        total_bultos = df_total['Bultos'].sum()
+                        st.metric("📦 Total bultos", f"{total_bultos:.0f}")
+                with col3:
+                    impulsivos_count = len(inventory_impulsivos) if inventory_impulsivos else 0
+                    st.metric("🍦 Impulsivos", impulsivos_count)
+                with col4:
+                    granel_count = len(inventory_granel) if inventory_granel else 0
+                    st.metric("⚖️ Granel", granel_count)
+                
+                # Selector de tipo de sugerencia
+                st.markdown("#### 🎯 ¿Qué tipo de sugerencia deseas generar?")
+                
+                opciones_disponibles = []
                 if inventory_impulsivos:
-                    current_inventory.extend(inventory_impulsivos)
+                    opciones_disponibles.append("🍦 Solo Impulsivos")
                 if inventory_granel:
+                    opciones_disponibles.append("⚖️ Solo Granel (Por Kilos)")
+                if inventory_impulsivos and inventory_granel:
+                    opciones_disponibles.append("📦 Ambos (Impulsivos + Granel)")
+                
+                tipo_seleccionado = st.radio(
+                    "Selecciona el tipo:",
+                    opciones_disponibles,
+                    help="Elige qué productos incluir en la sugerencia",
+                    horizontal=True,
+                    key="tipo_sugerencia_radio"
+                )
+                
+                # Preparar inventario según selección
+                if tipo_seleccionado == "🍦 Solo Impulsivos":
+                    current_inventory = inventory_impulsivos
+                    tipo_sugerencia = "impulsivo"
+                    st.info("📋 Se generarán sugerencias SOLO para productos impulsivos")
+                elif tipo_seleccionado == "⚖️ Solo Granel (Por Kilos)":
+                    current_inventory = inventory_granel
+                    tipo_sugerencia = "granel"
+                    st.info("📋 Se generarán sugerencias SOLO para productos a granel")
+                else:
+                    current_inventory = []
+                    if inventory_impulsivos:
+                        current_inventory.extend(inventory_impulsivos)
+                    if inventory_granel:
                     current_inventory.extend(inventory_granel)
                 tipo_sugerencia = "ambos"
                 st.info("📋 Se generarán sugerencias para AMBOS tipos de productos")

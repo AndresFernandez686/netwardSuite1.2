@@ -267,6 +267,103 @@ class DatabaseService:
         except Exception as e:
             logger.error(f"Error obteniendo sugerencias: {e}")
             return []
+    
+    def save_inventory_snapshot(self, store_id: int, inventory_data: Dict) -> int:
+        """
+        Guarda un snapshot del inventario sincronizado
+        
+        Args:
+            store_id: ID de la tienda
+            inventory_data: Datos del inventario sincronizado
+            
+        Returns:
+            ID del snapshot guardado
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Crear tabla si no existe
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS inventory_snapshots (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    store_id INTEGER NOT NULL,
+                    inventory_json TEXT NOT NULL,
+                    total_bultos INTEGER NOT NULL,
+                    total_productos INTEGER NOT NULL,
+                    stock_ok INTEGER NOT NULL,
+                    stock_bajo INTEGER NOT NULL,
+                    sin_stock INTEGER NOT NULL,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY (store_id) REFERENCES stores (id)
+                )
+            """)
+            
+            metadata = inventory_data.get("metadata", {})
+            
+            cursor.execute("""
+                INSERT INTO inventory_snapshots 
+                (store_id, inventory_json, total_bultos, total_productos, 
+                 stock_ok, stock_bajo, sin_stock, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                store_id,
+                json.dumps(inventory_data),
+                metadata.get("total_bultos", 0),
+                metadata.get("total_productos", 0),
+                metadata.get("stock_ok", 0),
+                metadata.get("stock_bajo", 0),
+                metadata.get("sin_stock", 0),
+                datetime.now().isoformat()
+            ))
+            
+            snapshot_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+            
+            logger.info(f"Snapshot de inventario guardado con ID: {snapshot_id}")
+            return snapshot_id
+            
+        except Exception as e:
+            logger.error(f"Error guardando snapshot de inventario: {e}")
+            raise
+    
+    def get_latest_inventory_snapshot(self, store_id: int) -> Optional[Dict]:
+        """
+        Obtiene el snapshot más reciente del inventario para una tienda
+        
+        Args:
+            store_id: ID de la tienda
+            
+        Returns:
+            Diccionario con datos del inventario o None
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT inventory_json, created_at
+                FROM inventory_snapshots
+                WHERE store_id = ?
+                ORDER BY created_at DESC
+                LIMIT 1
+            """, (store_id,))
+            
+            row = cursor.fetchone()
+            conn.close()
+            
+            if row:
+                return {
+                    "data": json.loads(row[0]),
+                    "created_at": row[1]
+                }
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error obteniendo snapshot de inventario: {e}")
+            return None
 
 
 # Instancia global del servicio
