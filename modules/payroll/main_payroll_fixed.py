@@ -113,16 +113,16 @@ def mostrar_calculo_rapido():
                 sueldo_neto = sueldo_bruto - descuentos
                 
                 # Mostrar resultados
-                st.success("✅ Cálculo completado")
+                st.success("Cálculo completado")
                 
                 col1, col2, col3 = st.columns(3)
                 
                 with col1:
-                    st.metric("💰 Sueldo Bruto", f"Gs. {sueldo_bruto:,.0f}")
+                    st.metric("Sueldo Bruto", f"Gs. {sueldo_bruto:,.0f}")
                     st.metric("⏰ Total Horas", f"{horas_normales + horas_especiales:.1f}")
                 
                 with col2:
-                    st.metric("💸 Descuentos", f"Gs. {descuentos:,.0f}")
+                    st.metric("Descuentos", f"Gs. {descuentos:,.0f}")
                     st.metric("🌙 Horas Especiales", f"{horas_especiales:.1f}")
                 
                 with col3:
@@ -258,7 +258,7 @@ def mostrar_calculo_archivo():
                     
                     with col2:
                         total_bruto = df_resultados['Sueldo_Bruto'].sum()
-                        st.metric("💰 Total Bruto", f"Gs. {total_bruto:,.0f}")
+                        st.metric("Total Bruto", f"Gs. {total_bruto:,.0f}")
                     
                     with col3:
                         total_neto = df_resultados['Sueldo_Neto'].sum()

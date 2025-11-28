@@ -2,6 +2,10 @@ import streamlit as st
 from datetime import date, datetime, timedelta
 import pandas as pd
 
+# Configuración para mejorar rendimiento
+if 'admin_page_config' not in st.session_state:
+    st.session_state.admin_page_config = True
+
 # Importar utilidades con manejo de errores
 try:
     from .utils import df_to_csv_bytes
@@ -14,11 +18,12 @@ except ImportError:
 
 # Importar productos base para mostrar productos no cargados
 try:
-    from .ui_empleado import PRODUCTOS_BASE
+    from .ui_empleado_fixed import PRODUCTOS_BASE
 except ImportError:
     try:
-        from ui_empleado import PRODUCTOS_BASE
+        from ui_empleado_fixed import PRODUCTOS_BASE
     except ImportError:
+        # Estructura base
         PRODUCTOS_BASE = {
             "Impulsivo": {},
             "Por Kilos": {},
@@ -43,6 +48,7 @@ except ImportError:
     except ImportError:
         mermas_manager = None
 
+@st.cache_data(ttl=300)  # Cache por 5 minutos
 def obtener_ultimo_modo(producto: str, categoria: str, tienda_id: str = "T001") -> str:
     """Obtiene el último UME (Unidad, Caja, Tira) usado para un producto del historial"""
     try:
@@ -88,6 +94,8 @@ def admin_inventario_ui(inventario, tienda_id="T001"):
     # Muestra tablas para cada categoría y botones de descarga
     st.header("🏪 Gestión de Inventario")
     
+    # Las estadísticas ya se muestran en cada categoría individualmente
+    
     # Controles de visualización en columnas
     col_filter, col_search = st.columns([1, 1])
     
@@ -114,8 +122,6 @@ def admin_inventario_ui(inventario, tienda_id="T001"):
             continue
             
         # Header de categoría simple
-        st.subheader(f"Categoría: {categoria}")
-        
         productos = inventario[categoria]
         
         # Para mostrar productos no cargados, incluir también productos base que no están en inventario
@@ -124,6 +130,91 @@ def admin_inventario_ui(inventario, tienda_id="T001"):
             for producto_base in PRODUCTOS_BASE[categoria]:
                 if producto_base not in productos_completos:
                     productos_completos[producto_base] = 0  # Agregar como no cargado
+        
+        # NUEVO: Mostrar header y filtro de estado para todas las categorías con estructura moderna
+        if categoria in ["Por Kilos", "Extras", "Impulsivo"]:
+            st.subheader(f"Categoría: {categoria}")
+            
+            # Crear columnas para filtros
+            col_estado, col_info = st.columns([1, 2])
+            
+            with col_estado:
+                estado_filtro = st.selectbox(
+                    f"Estado en {categoria}",
+                    ["Todos", "Cargado", "No cargado"],
+                    key=f"filtro_estado_{categoria}_{tienda_id}"
+                )
+            
+            with col_info:
+                # Contar productos por estado
+                productos_cargados = 0
+                productos_no_cargados = 0
+                
+                for producto, datos in productos_completos.items():
+                    if categoria == "Por Kilos":
+                        if isinstance(datos, dict) and all(key in datos for key in ["cajas_cerradas", "cajas_abiertas", "kgs_cajas_abiertas"]):
+                            total_kgs = (datos.get("cajas_cerradas", 0) * 7.8) + datos.get("kgs_cajas_abiertas", 0.0)
+                            if total_kgs > 0:
+                                productos_cargados += 1
+                            else:
+                                productos_no_cargados += 1
+                        elif isinstance(datos, (int, float)) and datos > 0:
+                            productos_cargados += 1
+                        else:
+                            productos_no_cargados += 1
+                    else:  # Extras e Impulsivo
+                        if isinstance(datos, dict) and all(key in datos for key in ["bultos", "unidad"]):
+                            total = datos.get("bultos", 0) + datos.get("unidad", 0)
+                            if total > 0:
+                                productos_cargados += 1
+                            else:
+                                productos_no_cargados += 1
+                        elif isinstance(datos, (int, float)) and datos > 0:
+                            productos_cargados += 1
+                        else:
+                            productos_no_cargados += 1
+                
+                st.info(f"📈 Mostrando {len(productos_completos)} productos: 🟢 {productos_cargados} cargados, 🔴 {productos_no_cargados} sin cargar")
+            
+            # Aplicar filtro de estado
+            if estado_filtro == "Cargado":
+                productos_filtrados_estado = {}
+                for producto, datos in productos_completos.items():
+                    if categoria == "Por Kilos":
+                        if isinstance(datos, dict) and all(key in datos for key in ["cajas_cerradas", "cajas_abiertas", "kgs_cajas_abiertas"]):
+                            total_kgs = (datos.get("cajas_cerradas", 0) * 7.8) + datos.get("kgs_cajas_abiertas", 0.0)
+                            if total_kgs > 0:
+                                productos_filtrados_estado[producto] = datos
+                        elif isinstance(datos, (int, float)) and datos > 0:
+                            productos_filtrados_estado[producto] = datos
+                    else:  # Extras e Impulsivo
+                        if isinstance(datos, dict) and all(key in datos for key in ["bultos", "unidad"]):
+                            total = datos.get("bultos", 0) + datos.get("unidad", 0)
+                            if total > 0:
+                                productos_filtrados_estado[producto] = datos
+                        elif isinstance(datos, (int, float)) and datos > 0:
+                            productos_filtrados_estado[producto] = datos
+                productos_completos = productos_filtrados_estado
+            elif estado_filtro == "No cargado":
+                productos_filtrados_estado = {}
+                for producto, datos in productos_completos.items():
+                    if categoria == "Por Kilos":
+                        if isinstance(datos, dict) and all(key in datos for key in ["cajas_cerradas", "cajas_abiertas", "kgs_cajas_abiertas"]):
+                            total_kgs = (datos.get("cajas_cerradas", 0) * 7.8) + datos.get("kgs_cajas_abiertas", 0.0)
+                            if total_kgs == 0:
+                                productos_filtrados_estado[producto] = datos
+                        elif not isinstance(datos, dict) and (not datos or datos == 0):
+                            productos_filtrados_estado[producto] = datos
+                    else:  # Extras e Impulsivo
+                        if isinstance(datos, dict) and all(key in datos for key in ["bultos", "unidad"]):
+                            total = datos.get("bultos", 0) + datos.get("unidad", 0)
+                            if total == 0:
+                                productos_filtrados_estado[producto] = datos
+                        elif not isinstance(datos, dict) and (not datos or datos == 0):
+                            productos_filtrados_estado[producto] = datos
+                productos_completos = productos_filtrados_estado
+        else:
+            st.subheader(f"Categoría: {categoria}")
         
         # Filtrar por búsqueda
         productos_filtrados = {}
@@ -137,7 +228,10 @@ def admin_inventario_ui(inventario, tienda_id="T001"):
         
         # Si no hay resultados con el filtro actual
         if not productos_filtrados:
-            st.warning(f" No se encontraron productos en '{categoria}' con el término '{busqueda}'")
+            if busqueda:
+                st.warning(f" No se encontraron productos en '{categoria}' con el término '{busqueda}'")
+            else:
+                st.info(f" No hay productos para mostrar en '{categoria}' con el filtro de estado seleccionado")
             continue
         
         # Usar orden alfabético simple para todas las categorías
@@ -147,77 +241,133 @@ def admin_inventario_ui(inventario, tienda_id="T001"):
         if busqueda and len(productos_ordenados) > 3:
             productos_ordenados = productos_ordenados[-3:]
         
+        # Info ya se muestra en el filtro de estado, no duplicar
+        
         # Crear DataFrame según la categoría y agregar indicadores de stock
         if categoria == "Por Kilos":
             productos_csv = []
-            # Crear tabla específica para productos por kilos
+            # Crear tabla específica para productos por kilos con nueva estructura de 4 columnas
             for producto in productos_ordenados:
-                baldes = productos_filtrados[producto]
+                datos_producto = productos_filtrados[producto]
                 
-                # Calcular cantidad total para determinar el estado de alerta
-                if isinstance(baldes, list):
-                    cantidad_total = sum(baldes) if all(isinstance(x, (int, float)) for x in baldes) else len([b for b in baldes if str(b) != "Vacío"])
-                else:
-                    cantidad_total = baldes if isinstance(baldes, (int, float)) else 0
-                
-                # Obtener indicador de alerta
-                if stock_alert_system:
-                    emoji, status, desc = stock_alert_system.get_stock_status(producto, cantidad_total)
-                    estado_alerta = f"{emoji} {desc}"
-                    color_css = stock_alert_system.get_stock_color_css(status)
-                else:
-                    emoji, status, desc, estado_alerta = "📦", "unknown", "N/A", "📦 N/A"
-                    color_css = "background: #f8f9fa; color: #333;"
-                
-                # Obtener último modo (UME) usado
-                modo = obtener_ultimo_modo(producto, categoria, tienda_id)
-                
-                if isinstance(baldes, list):
-                    # Verificar si son kilos (números) o estados (strings)
-                    if all(isinstance(x, (int, float)) for x in baldes):
+                # Verificar si es la nueva estructura de 4 columnas
+                if isinstance(datos_producto, dict) and all(key in datos_producto for key in ["cajas_cerradas", "cajas_abiertas", "kgs_cajas_abiertas"]):
+                    # Nueva estructura de 4 columnas
+                    cajas_cerradas = datos_producto.get("cajas_cerradas", 0)
+                    cajas_abiertas = datos_producto.get("cajas_abiertas", 0)
+                    kgs_abiertas = datos_producto.get("kgs_cajas_abiertas", 0.0)
+                    
+                    # Calcular totales
+                    total_kgs = (cajas_cerradas * 7.8) + kgs_abiertas
+                    total_cajas = cajas_cerradas + cajas_abiertas
+                    
+                    # Obtener indicador de alerta
+                    if stock_alert_system:
+                        emoji, status, desc = stock_alert_system.get_stock_status(producto, total_kgs)
+                        estado_alerta = f"{emoji} {desc}"
+                        color_css = stock_alert_system.get_stock_color_css(status)
+                    else:
+                        emoji, status, desc, estado_alerta = "📦", "unknown", "N/A", "📦 N/A"
+                        color_css = "background: #f8f9fa; color: #333;"
+                    
+                    # Determinar estado
+                    estado = "🟢 Cargado" if total_kgs > 0 else "🔴 No cargado"
+                    
+                    # Obtener último modo (UME) usado
+                    modo = obtener_ultimo_modo(producto, categoria, tienda_id)
+                    
+                    productos_csv.append({
+                        "🚨 Estado": estado_alerta,
+                        "📦 Producto": producto, 
+                        "🔒 Cajas Cerradas": cajas_cerradas,
+                        "📂 Cajas Abiertas": cajas_abiertas,
+                        "⚖️ Kgs Abiertas": f"{kgs_abiertas:.3f}".replace(".", ",") + " kg",
+                        "📊 Total Kgs": f"{total_kgs:.3f}".replace(".", ",") + " kg",
+                        "📅 Tipo": "Estructura Nueva",
+                        "📌 Modo": modo,
+                        "✅ Estado": estado
+                    })
+                    
+                # Mantener compatibilidad con estructura antigua
+                elif isinstance(datos_producto, list):
+                    # Estructura antigua con listas
+                    if all(isinstance(x, (int, float)) for x in datos_producto):
                         # Formato quincenal con kilos
-                        total_kilos = sum(baldes)
-                        kilos_detalle = ", ".join([f'{k:.1f}kg' for k in baldes])
+                        total_kilos = sum(datos_producto)
+                        kilos_detalle = ", ".join([f'{k:.3f}'.replace(".", ",") + " kg" for k in datos_producto])
                         estado = "🟢 Cargado" if total_kilos > 0 else "🔴 No cargado"
+                        
+                        if stock_alert_system:
+                            emoji, status, desc = stock_alert_system.get_stock_status(producto, total_kilos)
+                            estado_alerta = f"{emoji} {desc}"
+                        else:
+                            estado_alerta = "📦 N/A"
+                        
+                        modo = obtener_ultimo_modo(producto, categoria, tienda_id)
+                        
                         productos_csv.append({
                             "🚨 Estado": estado_alerta,
                             "📦 Producto": producto, 
-                            "📊 Detalle": f"Total: {total_kilos:.1f} kg",
-                            "🏪 Baldes": kilos_detalle, 
-                            "⚖️ Cantidad": total_kilos,
-                            "📅 Tipo": "Quincenal",
+                            "🔒 Cajas Cerradas": "N/A",
+                            "📂 Cajas Abiertas": "N/A", 
+                            "⚖️ Kgs Abiertas": "N/A",
+                            "📊 Total Kgs": f"{total_kilos:.3f}".replace(".", ",") + " kg",
+                            "📅 Tipo": "Estructura Antigua",
                             "📌 Modo": modo,
                             "✅ Estado": estado
                         })
                     else:
                         # Formato diario/semanal con estados
-                        estado_baldes = ", ".join([str(b) for b in baldes])
-                        llenos = sum(1 for b in baldes if str(b) != "Vacío")
+                        estado_baldes = ", ".join([str(b) for b in datos_producto])
+                        llenos = sum(1 for b in datos_producto if str(b) != "Vacío")
                         estado = "🟢 Cargado" if llenos > 0 else "🔴 No cargado"
+                        
+                        if stock_alert_system:
+                            emoji, status, desc = stock_alert_system.get_stock_status(producto, llenos)
+                            estado_alerta = f"{emoji} {desc}"
+                        else:
+                            estado_alerta = "📦 N/A"
+                        
+                        modo = obtener_ultimo_modo(producto, categoria, tienda_id)
+                        
                         productos_csv.append({
                             "🚨 Estado": estado_alerta,
                             "📦 Producto": producto, 
-                            "📊 Detalle": f"{llenos} baldes llenos",
-                            "🏪 Baldes": estado_baldes, 
-                            "⚖️ Cantidad": llenos,
-                            "📅 Tipo": "Diario/Semanal",
+                            "🔒 Cajas Cerradas": "N/A",
+                            "📂 Cajas Abiertas": "N/A",
+                            "⚖️ Kgs Abiertas": estado_baldes,
+                            "📊 Total Kgs": f"{llenos} baldes",
+                            "📅 Tipo": "Estados Antiguos",
                             "📌 Modo": modo,
                             "✅ Estado": estado
                         })
+                        
                 else:
-                    estado = "🟢 Cargado" if baldes > 0 else "🔴 No cargado"
+                    # Estructura muy antigua (solo número)
+                    cantidad = datos_producto if isinstance(datos_producto, (int, float)) else 0
+                    estado = "🟢 Cargado" if cantidad > 0 else "🔴 No cargado"
+                    
+                    if stock_alert_system:
+                        emoji, status, desc = stock_alert_system.get_stock_status(producto, cantidad)
+                        estado_alerta = f"{emoji} {desc}"
+                    else:
+                        estado_alerta = "📦 N/A"
+                    
+                    modo = obtener_ultimo_modo(producto, categoria, tienda_id)
+                    
                     productos_csv.append({
                         "🚨 Estado": estado_alerta,
                         "📦 Producto": producto, 
-                        "📊 Detalle": str(baldes),
-                        "🏪 Baldes": str(baldes), 
-                        "⚖️ Cantidad": baldes if isinstance(baldes, (int, float)) else 0,
-                        "📅 Tipo": "Diario/Semanal",
+                        "🔒 Cajas Cerradas": "N/A",
+                        "📂 Cajas Abiertas": "N/A",
+                        "⚖️ Kgs Abiertas": "N/A",
+                        "📊 Total Kgs": f"{cantidad}kg",
+                        "📅 Tipo": "Estructura Muy Antigua",
                         "📌 Modo": modo,
                         "✅ Estado": estado
                     })
         else:
-            # Para otras categorías (Impulsivo, Extras)
+            # Para otras categorías (Impulsivo, Extras) - NUEVA ESTRUCTURA BULTOS/UNIDAD
             productos_csv = []
             for producto in productos_ordenados:
                 if producto not in productos_filtrados:
@@ -225,49 +375,86 @@ def admin_inventario_ui(inventario, tienda_id="T001"):
                     
                 cantidad_data = productos_filtrados[producto]
                 
-                # Extraer la cantidad según la estructura
-                if categoria == "Impulsivo" and isinstance(cantidad_data, dict):
+                # Manejar nueva estructura bultos/unidad para Impulsivo y Extras
+                if isinstance(cantidad_data, dict) and "bultos" in cantidad_data and "unidad" in cantidad_data:
+                    # Nueva estructura: {"bultos": X, "unidad": Y}
+                    bultos = cantidad_data.get("bultos", 0)
+                    unidad = cantidad_data.get("unidad", 0)
+                    cantidad_total = bultos + unidad  # Total para alertas
+                    
+                    # Obtener estado de alerta del producto
+                    if stock_alert_system:
+                        emoji, status, desc = stock_alert_system.get_stock_status(producto, cantidad_total)
+                        estado_alerta = f"{emoji} {desc}"
+                    else:
+                        emoji = "📦"
+                        estado_alerta = "📦 N/A"
+                    
+                    # Obtener último modo (UME) usado
+                    modo = obtener_ultimo_modo(producto, categoria, tienda_id)
+                    
+                    estado = "🟢 Cargado" if cantidad_total > 0 else "🔴 No cargado"
+                    productos_csv.append({
+                        "📦 Producto": producto,
+                        "📦 Bultos": bultos,
+                        "🔢 Unidad": unidad,
+                        "📌 Modo": modo,
+                        "🚨 Estado Stock": estado_alerta,
+                        "✅ Estado": estado
+                    })
+                elif isinstance(cantidad_data, dict):
+                    # Estructura antigua con "stock" (compatibilidad)
                     cantidad = cantidad_data.get("stock", 0)
+                    
+                    # Obtener estado de alerta del producto
+                    if stock_alert_system:
+                        emoji, status, desc = stock_alert_system.get_stock_status(producto, cantidad)
+                        estado_alerta = f"{emoji} {desc}"
+                    else:
+                        emoji = "📦"
+                        estado_alerta = "📦 N/A"
+                    
+                    # Obtener último modo (UME) usado
+                    modo = obtener_ultimo_modo(producto, categoria, tienda_id)
+                    
+                    estado = "🟢 Cargado" if cantidad > 0 else "🔴 No cargado"
+                    productos_csv.append({
+                        "📦 Producto": producto,
+                        "📊 Cantidad": cantidad,
+                        "📌 Modo": modo,
+                        "🚨 Estado Stock": estado_alerta,
+                        "✅ Estado": estado
+                    })
                 else:
-                    cantidad = cantidad_data
-                
-                # Obtener estado de alerta del producto
-                if stock_alert_system:
-                    emoji, status, desc = stock_alert_system.get_stock_status(producto, cantidad)
-                    estado_alerta = f"{emoji} {desc}"
-                else:
-                    emoji = "📦"
-                    estado_alerta = "📦 N/A"
-                
-                # Obtener último modo (UME) usado
-                modo = obtener_ultimo_modo(producto, categoria, tienda_id)
-                
-                estado = "🟢 Cargado" if cantidad > 0 else "🔴 No cargado"
-                productos_csv.append({
-                    "📦 Producto": producto,
-                    "📊 Cantidad": cantidad,
-                    "📌 Modo": modo,
-                    "🚨 Estado Stock": estado_alerta,
-                    "✅ Estado": estado
-                })
+                    # Estructura simple (número directo) - migrar a nueva estructura
+                    cantidad = cantidad_data if isinstance(cantidad_data, (int, float)) else 0
+                    
+                    # Obtener estado de alerta del producto
+                    if stock_alert_system:
+                        emoji, status, desc = stock_alert_system.get_stock_status(producto, cantidad)
+                        estado_alerta = f"{emoji} {desc}"
+                    else:
+                        emoji = "📦"
+                        estado_alerta = "📦 N/A"
+                    
+                    # Obtener último modo (UME) usado
+                    modo = obtener_ultimo_modo(producto, categoria, tienda_id)
+                    
+                    estado = "🟢 Cargado" if cantidad > 0 else "🔴 No cargado"
+                    productos_csv.append({
+                        "📦 Producto": producto,
+                        "📦 Bultos": 0,  # Migrar a nueva estructura
+                        "🔢 Unidad": cantidad,  # Poner cantidad antigua en unidad
+                        "📌 Modo": modo,
+                        "🚨 Estado Stock": estado_alerta,
+                        "✅ Estado": estado,
+                        "⚠️ Migración": "Datos migrados automáticamente"
+                    })
         
         # Crear DataFrame
         df = pd.DataFrame(productos_csv)
         
-        # Filtros adicionales para categorías específicas
-        if categoria in ["Por Kilos", "Impulsivo", "Extras"]:
-            # Agregar filtro por estado de carga
-            col_estado, col_info = st.columns([1, 2])
-            with col_estado:
-                estados = ["Todos", "🟢 Cargado", "🔴 No cargado"]
-                estado_seleccionado = st.selectbox(f"Estado en {categoria}", estados)
-                
-                if estado_seleccionado != "Todos":
-                    df = df[df["✅ Estado"] == estado_seleccionado]
-            
-            with col_info:
-                if not df.empty:
-                    st.info(f"📋 Mostrando {len(df)} productos de {categoria}")
+        # El filtro de estado ya se aplicó arriba, no duplicar filtros aquí
         
         # Mostrar tabla si hay datos
         if not df.empty:
@@ -298,14 +485,20 @@ def admin_inventario_ui(inventario, tienda_id="T001"):
                     from utils import df_to_excel_bytes
                 excel_bytes = df_to_excel_bytes(df)
                 st.download_button(
-                    label=f"📥 Descargar Excel de {categoria}",
+                    label=f"📥 Descargar Excel de {categoria} (Formato Plantilla Tienda)",
                     data=excel_bytes,
-                    file_name=f"inventario_{categoria.lower().replace(' ', '_')}.xlsx",
+                    file_name=f"inventario_{categoria.lower().replace(' ', '_')}_{tienda_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    use_container_width=True
+                    use_container_width=True,
+                    help=f"Excel con formato plantilla de tienda - Bultos/Unidad separados para {categoria}"
                 )
             except Exception as e:
                 st.warning(f"Error preparando descarga: {e}")
+            
+            # Botón especial para generar reporte en formato de plantilla de tienda
+            if categoria in ["Impulsivo", "Extras", "Por Kilos"] and not df.empty:
+                if st.button(f"📋 Generar Reporte Formato Plantilla Tienda - {categoria}", use_container_width=True, type="secondary"):
+                    generar_reporte_plantilla_tienda(df, categoria, tienda_id)
         else:
             st.warning(f"❌ No hay productos en estado '{estado_seleccionado}' para la categoría '{categoria}'")
 
@@ -382,11 +575,22 @@ def admin_historial_ui(historial_json):
             tipo_inventario = row.get("tipo_inventario", "Diario")
             
             if categoria == "Por Kilos" and isinstance(cantidad, dict):
-                if cantidad.get("tipo") == "Quincenal" and "total_kilos" in cantidad:
+                # Nueva estructura de 4 columnas
+                if all(key in cantidad for key in ["cajas_cerradas", "cajas_abiertas", "kgs_cajas_abiertas"]):
+                    cajas_cerradas = cantidad.get("cajas_cerradas", 0)
+                    cajas_abiertas = cantidad.get("cajas_abiertas", 0)
+                    kgs_abiertas = cantidad.get("kgs_cajas_abiertas", 0.0)
+                    total_kgs = (cajas_cerradas * 7.8) + kgs_abiertas
+                    kgs_fmt = f"{kgs_abiertas:.3f}".replace(".", ",")
+                    total_fmt = f"{total_kgs:.3f}".replace(".", ",")
+                    return f"🔒{cajas_cerradas} cerradas, 📂{cajas_abiertas} abiertas, ⚖️{kgs_fmt} kg → Total: {total_fmt} kg"
+                # Estructuras antiguas
+                elif cantidad.get("tipo") == "Quincenal" and "total_kilos" in cantidad:
                     total = cantidad.get("total_kilos", 0)
                     kilos_detalle = cantidad.get("kilos_por_balde", [])
-                    detalle = ', '.join([f'{k:.1f}kg' for k in kilos_detalle])
-                    return f"Total: {total:.1f} kg ({detalle})"
+                    detalle = ', '.join([f'{k:.3f}'.replace(".", ",") + " kg" for k in kilos_detalle])
+                    total_fmt = f"{total:.3f}".replace(".", ",")
+                    return f"Total: {total_fmt} kg ({detalle})"
                 elif "estados" in cantidad:
                     estados = cantidad.get("estados", [])
                     return f"{', '.join(estados)}"
@@ -394,8 +598,9 @@ def admin_historial_ui(historial_json):
                 if all(isinstance(x, (int, float)) for x in cantidad):
                     # Lista de kilos
                     total = sum(cantidad)
-                    detalle = ', '.join([f'{k:.1f}kg' for k in cantidad])
-                    return f"Total: {total:.1f} kg ({detalle})"
+                    detalle = ', '.join([f'{k:.3f}'.replace(".", ",") + " kg" for k in cantidad])
+                    total_fmt = f"{total:.3f}".replace(".", ",")
+                    return f"Total: {total_fmt} kg ({detalle})"
                 else:
                     # Lista de estados
                     return f"{', '.join([str(x) for x in cantidad])}"
@@ -677,8 +882,11 @@ def mostrar_interfaz_admin():
         # Obtener tienda seleccionada del session_state
         tienda_id = st.session_state.get('inventory_user', {}).get('tienda', 'T001')
         
-        # Cargar inventario
-        inventario = cargar_inventario(tienda_id)
+        # Cargar inventario actual (sin selector de fecha)
+        st.info(f"📊 Mostrando inventario actual de la tienda")
+        
+        # Cargar inventario sin fecha (siempre lo último guardado)
+        inventario = cargar_inventario(tienda_id, None)
         
         # Mostrar interfaz moderna
         admin_inventario_ui(inventario, tienda_id)
@@ -711,3 +919,159 @@ def mostrar_interfaz_admin():
         )
         
         st.info(f"Inventario de: {tiendas_opciones[tienda_id]}")
+
+def generar_reporte_plantilla_tienda(df, categoria, tienda_id):
+    """Genera un reporte en formato de plantilla de tienda con columnas Bultos/Unidad separadas"""
+    
+    st.markdown("---")
+    st.markdown(f"### 📋 Reporte Formato Plantilla Tienda - {categoria}")
+    st.info("🏪 **Este reporte imita exactamente el formato de la plantilla utilizada en la tienda**")
+    
+    # Crear encabezado informativo
+    fecha_actual = datetime.now().strftime("%d/%m/%Y")
+    st.markdown(f"**SUCURSAL:** {tienda_id} | **FECHA:** {fecha_actual}")
+    
+    # Crear DataFrame para mostrar en formato de tabla limpia
+    tabla_data = []
+    
+    if categoria == "Por Kilos":
+        # Formato especial para Por Kilos con 4 columnas
+        for _, row in df.iterrows():
+            producto = row.get("📦 Producto", "N/A")
+            cajas_cerradas = row.get("🔒 Cajas Cerradas", 0)
+            cajas_abiertas = row.get("📂 Cajas Abiertas", 0)
+            kgs_abiertas = row.get("⚖️ Kgs Abiertas", "0.0kg")
+            total_kgs = row.get("📊 Total Kgs", "0.0kg")
+            
+            # Limpiar formato de kgs
+            kgs_num = float(kgs_abiertas.replace("kg", "")) if isinstance(kgs_abiertas, str) else kgs_abiertas
+            total_num = float(total_kgs.replace("kg", "")) if isinstance(total_kgs, str) else total_kgs
+            
+            tabla_data.append({
+                "ARTICULO": producto,
+                "CAJAS_CERRADAS": int(cajas_cerradas) if isinstance(cajas_cerradas, (int, float)) else 0,
+                "CAJAS_ABIERTAS": int(cajas_abiertas) if isinstance(cajas_abiertas, (int, float)) else 0,
+                "KGS_ABIERTAS": f"{kgs_num:.3f}".replace(".", ",") + " kg",
+                "TOTAL_KGS": f"{total_num:.3f}".replace(".", ",") + " kg"
+            })
+        
+        # Crear DataFrame para la tabla de Por Kilos
+        df_tabla = pd.DataFrame(tabla_data)
+        
+        # Mostrar la tabla con formato específico para Por Kilos
+        st.dataframe(
+            df_tabla,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "ARTICULO": st.column_config.TextColumn("🍦 ARTICULO", width="large"),
+                "CAJAS_CERRADAS": st.column_config.NumberColumn("🔒 CAJAS CERRADAS", width="small"),
+                "CAJAS_ABIERTAS": st.column_config.NumberColumn("📂 CAJAS ABIERTAS", width="small"),
+                "KGS_ABIERTAS": st.column_config.TextColumn("⚖️ KGS ABIERTAS", width="small"),
+                "TOTAL_KGS": st.column_config.TextColumn("📊 TOTAL KGS", width="small")
+            }
+        )
+        
+    else:
+        # Formato tradicional para Impulsivo y Extras
+        for _, row in df.iterrows():
+            producto = row.get("📦 Producto", "N/A")
+            bultos = row.get("📦 Bultos", 0)
+            unidad = row.get("🔢 Unidad", 0)
+            tabla_data.append({
+                "ARTICULO": producto,
+                "BULTOS": int(bultos),
+                "UNIDAD": int(unidad)
+            })
+        
+        # Crear DataFrame para la tabla
+        df_tabla = pd.DataFrame(tabla_data)
+        
+        # Mostrar la tabla con formato limpio
+        st.dataframe(
+            df_tabla,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "ARTICULO": st.column_config.TextColumn("🏷️ ARTICULO", width="large"),
+                "BULTOS": st.column_config.NumberColumn("📦 BULTOS", width="small"),
+                "UNIDAD": st.column_config.NumberColumn("🔢 UNIDAD", width="small")
+            }
+        )
+    
+    # Estadísticas del reporte
+    if categoria == "Por Kilos":
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            total_productos = len(df)
+            st.metric("🍦 Total Productos", total_productos)
+        
+        with col2:
+            total_cajas = 0
+            if "🔒 Cajas Cerradas" in df.columns and "📂 Cajas Abiertas" in df.columns:
+                total_cajas = df["🔒 Cajas Cerradas"].sum() + df["📂 Cajas Abiertas"].sum()
+            st.metric("📦 Total Cajas", int(total_cajas))
+        
+        with col3:
+            productos_cargados = len(df[df["✅ Estado"] == "🟢 Cargado"]) if "✅ Estado" in df.columns else 0
+            st.metric("✅ Productos Cargados", productos_cargados)
+        
+        # Preparar DataFrame para descarga con formato de plantilla Para Kilos
+        df_plantilla = pd.DataFrame(tabla_data)
+        
+    else:
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            total_productos = len(df)
+            st.metric("📦 Total Productos", total_productos)
+        
+        with col2:
+            total_bultos = df["📦 Bultos"].sum() if "📦 Bultos" in df.columns else 0
+            st.metric("📦 Total Bultos", int(total_bultos))
+        
+        with col3:
+            productos_cargados = len(df[df["✅ Estado"] == "🟢 Cargado"]) if "✅ Estado" in df.columns else 0
+            st.metric("✅ Productos Cargados", productos_cargados)
+        
+        # Preparar DataFrame para descarga con formato de plantilla tradicional
+        df_plantilla = pd.DataFrame({
+            "ARTICULO": df["📦 Producto"] if "📦 Producto" in df.columns else df.get("📦 Producto", []),
+            "BULTOS": df["📦 Bultos"] if "📦 Bultos" in df.columns else [0] * len(df),
+            "UNIDAD": df["🔢 Unidad"] if "🔢 Unidad" in df.columns else [0] * len(df)
+        })
+    
+    # Botón de descarga en formato plantilla
+    try:
+        try:
+            from .utils import df_to_excel_bytes
+        except ImportError:
+            from utils import df_to_excel_bytes
+        
+        excel_bytes = df_to_excel_bytes(df_plantilla)
+        
+        st.download_button(
+            label="📥 Descargar Formato Plantilla Tienda (Excel)",
+            data=excel_bytes,
+            file_name=f"plantilla_tienda_{categoria}_{tienda_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+            help="Descarga en formato exacto de plantilla de tienda: ARTICULO | BULTOS | UNIDAD"
+        )
+        
+        # También ofrecer descarga en CSV
+        csv_data = df_plantilla.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📄 Descargar Formato Plantilla Tienda (CSV)",
+            data=csv_data,
+            file_name=f"plantilla_tienda_{categoria}_{tienda_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
+        
+    except Exception as e:
+        st.error(f"❌ Error generando descarga: {e}")
+    
+    st.success("✅ Reporte generado en formato de plantilla de tienda")
+    st.info("💡 **Tip:** Este formato es idéntico al que se usa en la tienda físicamente")

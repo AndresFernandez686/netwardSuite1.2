@@ -29,9 +29,9 @@ class StockAlertSystem:
             return self._get_default_thresholds()
     
     def _get_default_thresholds(self) -> Dict[str, Dict[str, float]]:
-        """Umbrales por defecto para productos comunes"""
+        """Umbrales por defecto para productos comunes - ACTUALIZADO para bultos/unidad"""
         return {
-            # Helados por kilos
+            # Helados por kilos (sin cambios)
             "Vainilla": {"critico": 7.800, "medio": 15.600},
             "Chocolate": {"critico": 7.800, "medio": 15.600},
             "Fresa": {"critico": 7.800, "medio": 15.600},
@@ -39,27 +39,81 @@ class StockAlertSystem:
             "Crema Americana": {"critico": 7.800, "medio": 15.600},
             "Granizado": {"critico": 7.800, "medio": 15.600},
             
-            # Productos impulsivos (unidades)
-            "Caja almendrado": {"critico": 5, "medio": 15},
-            "Unidad Almendrado": {"critico": 10, "medio": 30},
-            "Caja Bombon Crocante": {"critico": 3, "medio": 10},
-            "Unidad Bombon Crocante": {"critico": 8, "medio": 25},
-            "Tentacion Chocolate": {"critico": 15, "medio": 40},
-            "Tentacion Dulce de Leche": {"critico": 20, "medio": 50},
-            "Crocantino": {"critico": 25, "medio": 60},
-            "Delicia": {"critico": 20, "medio": 50},
-            "Pizza": {"critico": 10, "medio": 30},
+            # Productos impulsivos - BULTOS (1 bulto = 6-12 unidades aprox)
+            "Alfajor Almendrado (Bultos)": {"critico": 1, "medio": 3},
+            "Alfajor Bombon Crocante (Bultos)": {"critico": 1, "medio": 2},
+            "Tentacion Chocolate (Bultos)": {"critico": 2, "medio": 5},
+            "Tentacion Dulce de Leche (Bultos)": {"critico": 2, "medio": 4},
+            "Crocantino (Bultos)": {"critico": 3, "medio": 8},
+            "Delicia (Bultos)": {"critico": 2, "medio": 5},
             
-            # Extras y suministros
-            "Cucurucho Nacional x54": {"critico": 50, "medio": 200},
-            "Cucurucho Biscoito Dulce x300": {"critico": 300, "medio": 800},
-            "Vaso capuccino": {"critico": 100, "medio": 500},
-            "Cucharita Grido": {"critico": 200, "medio": 800},
-            "Servilleta Grido": {"critico": 500, "medio": 2000},
-            "Cobertura Chocolate": {"critico": 2, "medio": 8},
-            "Cobertura Frutilla": {"critico": 2, "medio": 8},
-            "Cobertura Dulce de Leche": {"critico": 3, "medio": 10},
+            # Productos impulsivos - UNIDADES
+            "Alfajor Almendrado (Unidad)": {"critico": 10, "medio": 30},
+            "Alfajor Bombon Crocante (Unidad)": {"critico": 8, "medio": 25},
+            "Tentacion Chocolate (Unidad)": {"critico": 15, "medio": 40},
+            "Tentacion Dulce de Leche (Unidad)": {"critico": 20, "medio": 50},
+            "Crocantino (Unidad)": {"critico": 25, "medio": 60},
+            "Delicia (Unidad)": {"critico": 20, "medio": 50},
+            
+            # Extras - BULTOS
+            "Cinta Grido (Bultos)": {"critico": 1, "medio": 3},
+            "Cobertura Chocolate (Bultos)": {"critico": 2, "medio": 5},
+            "Cucurucho Nacional x54 (Bultos)": {"critico": 1, "medio": 3},
+            "Vaso capuccino (Bultos)": {"critico": 2, "medio": 6},
+            
+            # Extras - UNIDADES
+            "Cinta Grido (Unidad)": {"critico": 5, "medio": 15},
+            "Cobertura Chocolate (Unidad)": {"critico": 10, "medio": 25},
+            # Cucurucho Nacional x54 (Unidad)": {"critico": 20, "medio": 54},
+            "Vaso capuccino (Unidad)": {"critico": 50, "medio": 150},
+            
+            # Productos genéricos para compatibilidad
+            "producto_generico": {"critico": 5, "medio": 15}
         }
+    
+    def render_bultos_unidad_alerts(self, producto: str, bultos: int, unidad: int) -> str:
+        """Renderizar alertas específicas para productos con estructura bultos/unidad"""
+        
+        # Evaluar bultos
+        emoji_b, status_b, desc_b = self.get_stock_status(f"{producto} (Bultos)", bultos)
+        css_b = self.get_stock_color_css(status_b)
+        
+        # Evaluar unidades
+        emoji_u, status_u, desc_u = self.get_stock_status(f"{producto} (Unidad)", unidad)
+        css_u = self.get_stock_color_css(status_u)
+        
+        return f"""
+        <div style="display: flex; gap: 5px; align-items: center;">
+            <div style="{css_b} padding: 0.2rem 0.4rem; border-radius: 10px; font-size: 0.8rem;">
+                📦 {bultos} {emoji_b}
+            </div>
+            <div style="{css_u} padding: 0.2rem 0.4rem; border-radius: 10px; font-size: 0.8rem;">
+                🔢 {unidad} {emoji_u}
+            </div>
+        </div>
+        """
+    
+    def render_bultos_unidad_alerts(self, producto: str, bultos: int, unidad: int) -> str:
+        """Renderizar alertas específicas para productos con estructura bultos/unidad"""
+        
+        # Evaluar bultos
+        emoji_b, status_b, desc_b = self.get_stock_status(f"{producto} (Bultos)", bultos)
+        css_b = self.get_stock_color_css(status_b)
+        
+        # Evaluar unidades
+        emoji_u, status_u, desc_u = self.get_stock_status(f"{producto} (Unidad)", unidad)
+        css_u = self.get_stock_color_css(status_u)
+        
+        return f"""
+        <div style="display: flex; gap: 5px; align-items: center;">
+            <div style="{css_b} padding: 0.2rem 0.4rem; border-radius: 10px; font-size: 0.8rem;">
+                📦 {bultos} {emoji_b}
+            </div>
+            <div style="{css_u} padding: 0.2rem 0.4rem; border-radius: 10px; font-size: 0.8rem;">
+                🔢 {unidad} {emoji_u}
+            </div>
+        </div>
+        """
     
     def save_thresholds(self):
         """Guardar umbrales en archivo JSON"""
@@ -122,7 +176,7 @@ class StockAlertSystem:
         }
     
     def get_products_by_status(self, inventario: Dict) -> Dict[str, list]:
-        """Agrupar productos por estado de stock"""
+        """Agrupar productos por estado de stock - ACTUALIZADO para bultos/unidad"""
         status_groups = {
             "critical": [],
             "warning": [], 
@@ -130,13 +184,49 @@ class StockAlertSystem:
         }
         
         for categoria, productos in inventario.items():
-            for producto, cantidad in productos.items():
-                if isinstance(cantidad, (int, float)) and cantidad >= 0:
-                    emoji, status, desc = self.get_stock_status(producto, cantidad)
+            for producto, cantidad_data in productos.items():
+                # Manejar nueva estructura bultos/unidad para Impulsivo y Extras
+                if isinstance(cantidad_data, dict) and "bultos" in cantidad_data and "unidad" in cantidad_data:
+                    # Nueva estructura: {"bultos": X, "unidad": Y}
+                    bultos = cantidad_data.get("bultos", 0)
+                    unidad = cantidad_data.get("unidad", 0)
+                    
+                    # Para alertas, evaluamos bultos y unidades por separado
+                    # Pero mostramos el estado más crítico
+                    emoji_bultos, status_bultos, desc_bultos = self.get_stock_status(f"{producto} (Bultos)", bultos)
+                    emoji_unidad, status_unidad, desc_unidad = self.get_stock_status(f"{producto} (Unidad)", unidad)
+                    
+                    # Determinar el estado más crítico
+                    if status_bultos == "critical" or status_unidad == "critical":
+                        estado_final = "critical"
+                        emoji_final = "🔴"
+                        desc_final = f"Crítico (B:{bultos}, U:{unidad})"
+                    elif status_bultos == "warning" or status_unidad == "warning":
+                        estado_final = "warning"
+                        emoji_final = "🟡"
+                        desc_final = f"Atención (B:{bultos}, U:{unidad})"
+                    else:
+                        estado_final = "success"
+                        emoji_final = "🟢"
+                        desc_final = f"OK (B:{bultos}, U:{unidad})"
+                    
+                    status_groups[estado_final].append({
+                        "producto": producto,
+                        "categoria": categoria,
+                        "cantidad": f"B:{bultos}, U:{unidad}",
+                        "bultos": bultos,
+                        "unidad": unidad,
+                        "emoji": emoji_final,
+                        "descripcion": desc_final
+                    })
+                    
+                elif isinstance(cantidad_data, (int, float)) and cantidad_data >= 0:
+                    # Estructura simple (Por Kilos o datos antiguos)
+                    emoji, status, desc = self.get_stock_status(producto, cantidad_data)
                     status_groups[status].append({
                         "producto": producto,
                         "categoria": categoria,
-                        "cantidad": cantidad,
+                        "cantidad": cantidad_data,
                         "emoji": emoji,
                         "descripcion": desc
                     })

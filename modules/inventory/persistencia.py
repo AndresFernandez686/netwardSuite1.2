@@ -7,53 +7,75 @@ HISTORIAL_FILE = "historial_inventario.json"
 CATALOGO_DELIVERY_FILE = "catalogo_delivery.json"
 VENTAS_DELIVERY_FILE = "ventas_delivery.json"
 
+def migrar_estructura_inventario(inventario):
+    """Migra inventario de estructura antigua a nueva estructura"""
+    if not isinstance(inventario, dict):
+        return {"Impulsivo": {}, "Por Kilos": {}, "Extras": {}}
+    
+    for categoria in ["Impulsivo", "Extras"]:
+        if categoria in inventario and isinstance(inventario[categoria], dict):
+            for producto, valor in list(inventario[categoria].items()):
+                if isinstance(valor, (int, float)):
+                    # Convertir estructura antigua (número) a nueva (bultos/unidad)
+                    inventario[categoria][producto] = {
+                        "bultos": int(valor),
+                        "unidad": 0
+                    }
+    
+    if "Por Kilos" in inventario and isinstance(inventario["Por Kilos"], dict):
+        for producto, valor in list(inventario["Por Kilos"].items()):
+            if isinstance(valor, (int, float)):
+                # Convertir estructura antigua (número) a nueva (4 columnas)
+                inventario["Por Kilos"][producto] = {
+                    "cajas_cerradas": 0,
+                    "cajas_abiertas": 1 if valor > 0 else 0,
+                    "kgs_cajas_abiertas": float(valor)
+                }
+    
+    return inventario
+
 def cargar_inventario(tienda_id=None, fecha_carga=None):
-    """Carga inventario específico de una tienda o estructura base"""
+    """Carga inventario específico de una tienda - SIEMPRE carga lo último guardado"""
     productos_base = {
         "Impulsivo": {},
         "Por Kilos": {},
         "Extras": {}
     }
     
-    # Si no se proporciona fecha, usar la actual
-    if fecha_carga is None:
-        fecha_carga = date.today()
-    
-    fecha_str = str(fecha_carga) if isinstance(fecha_carga, date) else fecha_carga
-    
     if os.path.exists(INVENTARIO_FILE):
         with open(INVENTARIO_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
             
             if tienda_id:
-                # Verificar la fecha guardada para esta tienda
-                fechas_por_tienda = data.get("fechas_por_tienda", {})
-                fecha_tienda = fechas_por_tienda.get(tienda_id)
+                print(f"🔍 Cargando inventario para tienda {tienda_id}")
                 
-                # Si la fecha es diferente, retornar inventario vacío
-                if fecha_tienda and fecha_tienda != fecha_str:
-                    print(f"Fecha diferente para tienda {tienda_id}: guardado={fecha_tienda}, actual={fecha_str}")
-                    return productos_base.copy()
-                
-                # Cargar inventario específico de la tienda
+                # Cargar inventario específico de la tienda - SIN VALIDAR FECHAS
                 inventario_tiendas = data.get("inventario_por_tienda", {})
                 inventario = inventario_tiendas.get(tienda_id, productos_base.copy())
                 
-                # Si el inventario está vacío y la fecha coincide, retornarlo
+                # Migrar datos antiguos a nueva estructura automáticamente
+                inventario = migrar_estructura_inventario(inventario)
+                
+                # Debug: contar productos cargados
+                total_productos = sum(
+                    len(cat) if isinstance(cat, dict) else 0 
+                    for cat in inventario.values() 
+                    if isinstance(cat, dict)
+                )
+                print(f"✅ Inventario cargado: {total_productos} productos en tienda {tienda_id}")
+                
                 return inventario
             else:
                 # Cargar inventario global (para compatibilidad)
                 return data.get("inventario_global", productos_base.copy())
+    
+    print(f"⚠️ Archivo {INVENTARIO_FILE} no existe, retornando estructura vacía")
     return productos_base.copy()
 
 def guardar_inventario(inventario, tienda_id=None, fecha_carga=None):
-    """Guarda inventario global o específico de una tienda - ACUMULATIVO"""
+    """Guarda inventario - ACUMULATIVO Y SIMPLE, sin validación de fechas"""
     try:
-        # Si no se proporciona fecha, usar la actual
-        if fecha_carga is None:
-            fecha_carga = date.today()
-        
-        fecha_str = str(fecha_carga) if isinstance(fecha_carga, date) else fecha_carga
+        fecha_str = str(date.today())
         
         # Cargar datos existentes del archivo
         if os.path.exists(INVENTARIO_FILE):
@@ -63,8 +85,7 @@ def guardar_inventario(inventario, tienda_id=None, fecha_carga=None):
             data = {
                 "inventario_por_tienda": {},
                 "inventario_global": {},
-                "ultima_fecha_guardado": fecha_str,
-                "fechas_por_tienda": {}
+                "ultima_fecha_guardado": fecha_str
             }
         
         # Verificar y limpiar estructura anidada incorrecta (fix para datos corruptos)
@@ -98,26 +119,11 @@ def guardar_inventario(inventario, tienda_id=None, fecha_carga=None):
             data["fechas_por_tienda"] = {}
         
         if tienda_id:
-            # Verificar si la fecha cambió para esta tienda específica
-            fecha_tienda_anterior = data["fechas_por_tienda"].get(tienda_id)
-            
-            if fecha_tienda_anterior and fecha_tienda_anterior != fecha_str:
-                # La fecha cambió para esta tienda - reiniciar su inventario
-                print(f"Fecha cambió para tienda {tienda_id}: {fecha_tienda_anterior} → {fecha_str}")
-                data["inventario_por_tienda"][tienda_id] = {
-                    "Impulsivo": {},
-                    "Por Kilos": {},
-                    "Extras": {}
-                }
-            
-            # Actualizar fecha de la tienda
-            data["fechas_por_tienda"][tienda_id] = fecha_str
-            
             # Asegurar que existe la estructura base
             if "inventario_por_tienda" not in data:
                 data["inventario_por_tienda"] = {}
             
-            # Obtener inventario actual de la tienda
+            # Obtener o crear inventario actual de la tienda
             if tienda_id not in data["inventario_por_tienda"]:
                 data["inventario_por_tienda"][tienda_id] = {
                     "Impulsivo": {},
@@ -127,18 +133,23 @@ def guardar_inventario(inventario, tienda_id=None, fecha_carga=None):
             
             inventario_actual = data["inventario_por_tienda"][tienda_id]
             
-            # Actualizar ACUMULATIVAMENTE cada categoría sin perder datos
+            # Actualizar ACUMULATIVAMENTE cada categoría
             for categoria in ["Impulsivo", "Por Kilos", "Extras"]:
                 if categoria not in inventario_actual:
                     inventario_actual[categoria] = {}
                 
                 if categoria in inventario and isinstance(inventario[categoria], dict):
-                    # Actualizar/agregar productos nuevos sin eliminar los existentes
+                    # Actualizar/agregar productos nuevos
                     for producto, cantidad in inventario[categoria].items():
                         inventario_actual[categoria][producto] = cantidad
+                        print(f"💾 Guardando: {categoria} -> {producto} = {cantidad}")
             
             # Guardar el inventario actualizado
             data["inventario_por_tienda"][tienda_id] = inventario_actual
+            
+            # Debug: verificar que se guardó correctamente
+            productos_guardados = sum(len(cat.values()) if isinstance(cat, dict) else 0 for cat in inventario_actual.values() if isinstance(cat, dict))
+            print(f"✅ Total guardado: {productos_guardados} productos para tienda {tienda_id}")
         else:
             # Guardar inventario global (para compatibilidad)
             data["inventario_global"] = inventario
@@ -149,11 +160,15 @@ def guardar_inventario(inventario, tienda_id=None, fecha_carga=None):
         # Guardar en archivo
         with open(INVENTARIO_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
+        
+        print(f"✅ Archivo guardado exitosamente en {INVENTARIO_FILE}")
+        return True
             
     except Exception as e:
-        print(f"Error guardando inventario: {e}")
+        print(f"❌ Error guardando inventario: {e}")
         import traceback
         traceback.print_exc()
+        return False
 
 def guardar_historial(fecha, usuario, categoria, producto, cantidad, modo, tipo_inventario="Diario", tienda_id=None):
     """Guarda un registro detallado del movimiento de inventario."""

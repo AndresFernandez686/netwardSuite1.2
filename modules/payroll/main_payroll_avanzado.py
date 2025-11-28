@@ -133,7 +133,7 @@ def mostrar_calculo_rapido():
                 sueldo_neto = calculo['sueldo_bruto'] - descuentos
                 
                 # Mostrar resultados
-                st.success("✅ Cálculo completado")
+                st.success("Cálculo completado")
                 
                 col1, col2, col3, col4 = st.columns(4)
                 
@@ -400,13 +400,13 @@ def mostrar_interfaz_basica_sueldos():
             sueldo_bruto = sueldo_normal + sueldo_extra
             sueldo_neto = sueldo_bruto - descuentos
             
-            st.success("✅ Cálculo completado")
+            st.success("Cálculo completado")
             
             col1, col2, col3 = st.columns(3)
             with col1:
-                st.metric("💰 Sueldo Bruto", f"Gs. {sueldo_bruto:,.0f}")
+                st.metric("Sueldo Bruto", f"Gs. {sueldo_bruto:,.0f}")
             with col2:
-                st.metric("📉 Descuentos", f"Gs. {descuentos:,.0f}")
+                st.metric("Descuentos", f"Gs. {descuentos:,.0f}")
             with col3:
                 st.metric("💵 Sueldo Neto", f"Gs. {sueldo_neto:,.0f}")
 

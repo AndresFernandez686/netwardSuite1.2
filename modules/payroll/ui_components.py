@@ -101,10 +101,10 @@ def configurar_feriados():
             if len(st.session_state.feriados_list) >= 3:
                 st.error("❌ Máximo 3 fechas de feriados permitidas")
             elif fecha_seleccionada in st.session_state.feriados_list:
-                st.warning("⚠️ Esta fecha ya está agregada")
+                st.warning("Esta fecha ya está agregada")
             else:
                 st.session_state.feriados_list.append(fecha_seleccionada)
-                st.success(f"✅ Feriado agregado: {fecha_seleccionada.strftime('%d/%m/%Y')}")
+                st.success(f"Feriado agregado: {fecha_seleccionada.strftime('%d/%m/%Y')}")
     
     # Mostrar feriados seleccionados con opción de eliminar
     if st.session_state.feriados_list:
@@ -333,7 +333,7 @@ def mostrar_dashboard_empleados(df_datos: pd.DataFrame):
         df_datos (pd.DataFrame): DataFrame con datos de empleados
     """
     if df_datos.empty:
-        st.warning("⚠️ No hay datos de empleados para mostrar")
+        st.warning("No hay datos de empleados para mostrar")
         return
     
     st.subheader("👥 Dashboard de Empleados")
@@ -917,7 +917,7 @@ def mostrar_editor_registros_incompletos(df_incompletos: pd.DataFrame) -> bool:
             
             # Botón de confirmación individual
             if st.button(f"✅ Confirmar Registro {idx + 1}", key=f"confirmar_{idx}", use_container_width=True):
-                st.success(f"✅ Registro de {row['Empleado']} confirmado correctamente")
+                st.success(f"Registro de {row['Empleado']} confirmado correctamente")
     
     st.markdown("---")
     

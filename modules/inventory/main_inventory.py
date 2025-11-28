@@ -59,43 +59,27 @@ except ImportError:
     config_tiendas_available = False
     selector_tienda_empleado = GestorTiendas = obtener_nombre_tienda = cargar_config_tiendas = mostrar_panel_configuracion_tiendas = None
 
-# Import UI components - USAR VERSIÓN CORREGIDA
+# Import UI components
 try:
     from .ui_empleado_fixed import mostrar_interfaz_empleado
     ui_empleado_available = True
-    print("✅ Usando ui_empleado_fixed.py (versión corregida)")
+    print("✅ Módulo de empleado cargado correctamente")
 except ImportError:
-    try:
-        from .ui_empleado_new import mostrar_interfaz_empleado
-        ui_empleado_available = True
-        print("⚠️ Usando ui_empleado_new.py (versión con errores)")
-    except ImportError:
-        try:
-            from .ui_empleado import mostrar_interfaz_empleado
-            ui_empleado_available = True
-            print("⚠️ Usando ui_empleado.py (versión original)")
-        except ImportError:
-            inventory_imports_ok = False
-            ui_empleado_available = False
-            mostrar_interfaz_empleado = None
-            print("❌ No se pudo cargar ninguna versión de ui_empleado")
+    inventory_imports_ok = False
+    ui_empleado_available = False
+    mostrar_interfaz_empleado = None
+    print("❌ Error cargando módulo de empleado - ui_empleado_fixed no disponible")
 
 try:
     from .ui_admin import admin_inventario_ui, mostrar_interfaz_admin
     ui_admin_available = True
-    print("✅ Usando ui_admin.py (versión moderna de Netward1.8)")
+    print("✅ Módulo de administrador cargado correctamente")
 except ImportError:
-    try:
-        from .ui_admin_new import mostrar_interfaz_admin
-        ui_admin_available = True
-        admin_inventario_ui = None
-        print("⚠️ Usando ui_admin_new.py (versión con errores)")
-    except ImportError:
-        inventory_imports_ok = False
-        ui_admin_available = False
-        mostrar_interfaz_admin = None
-        admin_inventario_ui = None
-        print("❌ No se pudo cargar ninguna versión de ui_admin")
+    inventory_imports_ok = False
+    ui_admin_available = False
+    mostrar_interfaz_admin = None
+    admin_inventario_ui = None
+    print("❌ Error cargando módulo de administrador")
 
 # Los imports principales ya están definidos arriba
 
@@ -544,8 +528,35 @@ def show_admin_stores_view(tiendas_opciones):
         if 'admin_tienda_selected' not in st.session_state:
             st.session_state.admin_tienda_selected = "T001"
         
-        # Cargar inventario de la tienda usando la función disponible
-        inventario = cargar_inventario(st.session_state.admin_tienda_selected)
+        # El administrador siempre ve el inventario actual (sin selector de fecha)
+        from datetime import date
+        import json
+        import os
+        
+        # Usar None para que siempre cargue lo último guardado
+        fecha_admin = None
+        
+        # Botón de diagnóstico
+        if st.button("🔍 Diagnóstico de Inventario", help="Muestra información detallada sobre el estado del inventario"):
+            with st.expander("📋 Información de Diagnóstico", expanded=True):
+                try:
+                    if os.path.exists("inventario.json"):
+                        with open("inventario.json", "r", encoding="utf-8") as f:
+                            data_debug = json.load(f)
+                        st.json(data_debug)
+                        
+                        # Mostrar fechas por tienda
+                        fechas_por_tienda = data_debug.get("fechas_por_tienda", {})
+                        st.write("**Fechas por tienda:**")
+                        for tienda, fecha in fechas_por_tienda.items():
+                            st.write(f"- {tienda}: {fecha}")
+                    else:
+                        st.error("No se encontró el archivo inventario.json")
+                except Exception as e:
+                    st.error(f"Error al cargar diagnóstico: {str(e)}")
+        
+        # Cargar inventario de la tienda con la fecha específica
+        inventario = cargar_inventario(st.session_state.admin_tienda_selected, fecha_admin)
         
         # Llamar a la interfaz moderna de administrador directamente
         if admin_inventario_ui is not None:

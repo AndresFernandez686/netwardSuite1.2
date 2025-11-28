@@ -1,16 +1,8 @@
 {
   "inventario_por_tienda": {
     "T001": {
-      "Impulsivo": {
-        "Casatta": 25,
-        "Caja almendrado": 2,
-        "Unidad Almendrado": 2,
-        "Caja Bombon Escoces": 4,
-        "Unidad Bombon Crocante": 2
-      },
-      "Por Kilos": {
-        "Vainilla": 1
-      },
+      "Impulsivo": {},
+      "Por Kilos": {},
       "Extras": {}
     },
     "T002": {
@@ -19,25 +11,23 @@
       "Extras": {}
     }
   },
-  "inventario_global": {},
-  "ultima_fecha_guardado": "2025-10-24",
   "configuracion": {
     "tienda_default": "T001",
-    "version": "1.6",
+    "version": "1.8",
     "tiendas": {
       "T001": {
         "id": "T001",
         "nombre": "Seminario",
         "direccion": "Dirección no especificada",
         "activa": true,
-        "fecha_creacion": "2025-10-09"
+        "fecha_creacion": "2025-11-16"
       },
       "T002": {
         "id": "T002",
         "nombre": "Mcal Lopez",
         "direccion": "Dirección no especificada",
         "activa": true,
-        "fecha_creacion": "2025-10-09"
+        "fecha_creacion": "2025-11-16"
       }
     }
   }

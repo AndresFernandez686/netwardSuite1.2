@@ -97,7 +97,7 @@ def verificar_archivos_principales():
     
     archivos_principales = [
         "main.py",
-        "ui_empleado.py", 
+        "ui_empleado_fixed.py", 
         "ui_admin.py",
         "auth.py",
         "persistencia.py",
@@ -130,7 +130,7 @@ def mostrar_estructura_limpia():
 Netward1.7/
 ├── main.py                    # Aplicación principal
 ├── auth.py                    # Sistema de autenticación
-├── ui_empleado.py            # UI para empleados (mejorada)
+├── ui_empleado_fixed.py      # UI para empleados (consolidada y mejorada)
 ├── ui_admin.py               # UI para administradores  
 ├── persistencia.py           # Sistema de persistencia principal
 ├── carrito_persistencia.py   # Sistema de persistencia del carrito (NUEVO)

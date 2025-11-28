@@ -68,11 +68,17 @@ def procesar_datos_excel(df, valor_por_hora, opcion_feriados, dias_feriados, can
     from datetime import datetime, timedelta
     import pandas as pd
     
-    # Preparar conjunto de fechas de feriados
-    if opcion_feriados == "personalizado":
-        fechas_feriados = set(dias_feriados) if dias_feriados else set()
-    else:
-        fechas_feriados = set()
+    # Preparar conjunto de fechas de feriados - MEJORADO
+    fechas_feriados = set()
+    if dias_feriados:
+        for fecha in dias_feriados:
+            if hasattr(fecha, 'date'):
+                fechas_feriados.add(fecha.date())
+            else:
+                fechas_feriados.add(fecha)
+    
+    # Debug para verificar feriados
+    print(f"DEBUG: Feriados configurados: {list(fechas_feriados)}")
     
     resultados = []
     total_horas = 0
@@ -136,9 +142,14 @@ def procesar_fila_empleado(row, valor_por_hora, fechas_feriados):
         # Calcular horas especiales (20:00-22:00 con 30% extra)
         horas_normales, horas_especiales = calcular_horas_especiales(entrada_dt, salida_dt)
         
-        # Verificar si es feriado
-        es_feriado = fecha.date() in fechas_feriados
+        # Verificar si es feriado - MEJORADO
+        fecha_comparar = fecha.date()
+        es_feriado = fecha_comparar in fechas_feriados
         factor_feriado = 2 if es_feriado else 1
+        
+        # Debug silencioso
+        if fechas_feriados and es_feriado:
+            print(f"DEBUG: Feriado detectado para {row['Empleado']} el {fecha_comparar}")
 
         # Cálculo con horas normales y especiales
         sueldo_normal = horas_normales * valor_por_hora
@@ -165,7 +176,7 @@ def procesar_fila_empleado(row, valor_por_hora, fechas_feriados):
             "Fecha": fecha.strftime("%Y-%m-%d"),
             "Entrada": entrada.strftime("%H:%M"),
             "Salida": salida.strftime("%H:%M"),
-            "Feriado": "Sí" if es_feriado else "No",
+            "Feriado": "Sí (x2)" if es_feriado else "No",
             "Horas Trabajadas (h:mm)": horas_a_horasminutos(horas_trabajadas_decimal),
             "Horas Normales": horas_a_horasminutos(horas_normales),
             "Horas Especiales": horas_a_horasminutos(horas_especiales),
