@@ -16,6 +16,7 @@ sys.path.insert(0, current_dir)
 sys.path.insert(0, os.path.join(current_dir, 'modules'))
 sys.path.insert(0, os.path.join(current_dir, 'modules', 'inventory'))
 sys.path.insert(0, os.path.join(current_dir, 'modules', 'payroll'))
+sys.path.insert(0, os.path.join(current_dir, 'modules', 'sugerencias'))
 sys.path.insert(0, os.path.join(current_dir, 'shared'))
 
 # Importar sistema de autenticación
@@ -113,7 +114,7 @@ def show_dashboard():
     <div class="dashboard-header">
         <h1>🏢 Netw@rd Suite de Negocios</h1>
         <p><strong>Sistema Integrado de Gestión Empresarial</strong></p>
-        <small>Inventario • Nómina • Reportes</small>
+        <small>Inventario • Nómina • Sugerencias IA</small>
     </div>
     """, unsafe_allow_html=True)
     
@@ -124,8 +125,8 @@ def show_dashboard():
     
     # Módulos disponibles
     if is_admin:
-        # Admin ve ambos módulos
-        col1, col2 = st.columns(2)
+        # Admin ve todos los módulos
+        col1, col2, col3 = st.columns(3)
     else:
         # Empleado solo ve inventario (columna centrada)
         col1, col2, col3 = st.columns([1, 2, 1])
@@ -171,6 +172,26 @@ def show_dashboard():
             
             if st.button("💰 Ir a Nómina", key="btn_payroll", use_container_width=True, type="primary"):
                 st.session_state.current_module = 'payroll'
+                st.rerun()
+        
+        with col3:
+            st.markdown("""
+            <div class="module-card">
+                <h3>🤖 Sugerencias Inteligentes</h3>
+                <p><strong>Sistema de Recomendación de Compras con IA</strong></p>
+                <ul class="feature-list">
+                    <li>✅ Pronóstico del clima</li>
+                    <li>✅ Análisis de demanda</li>
+                    <li>✅ Sugerencias por tienda</li>
+                    <li>✅ Optimización de stock</li>
+                    <li>✅ Historial y analytics</li>
+                    <li>✅ Reportes detallados</li>
+                </ul>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            if st.button("🤖 Ir a Sugerencias", key="btn_sugerencias", use_container_width=True, type="primary"):
+                st.session_state.current_module = 'sugerencias'
                 st.rerun()
     else:
         # Para empleados, mostrar mensaje de acceso restringido
@@ -247,6 +268,17 @@ def show_navigation():
                 st.rerun()
     else:
         st.sidebar.info("💰 Nómina\n(Solo Admin)")
+    
+    # Botón Sugerencias (solo para admin)
+    if is_admin:
+        if current_module == 'sugerencias':
+            st.sidebar.success("🤖 Sugerencias IA - ACTIVO")
+        else:
+            if st.sidebar.button("🤖 Sugerencias Inteligentes", use_container_width=True):
+                st.session_state.current_module = 'sugerencias'
+                st.rerun()
+    else:
+        st.sidebar.info("🤖 Sugerencias\n(Solo Admin)")
 
 def main():
     """Función principal con dashboard y módulos"""
@@ -311,6 +343,47 @@ def main():
                 - loading_components.py
                 - calculations.py
                 - plantilla_sueldos_feriados_dias.xlsx
+                """)
+            
+            if st.button("🔙 Volver al Dashboard"):
+                del st.session_state['current_module']
+                st.rerun()
+    
+    elif current_module == 'sugerencias':
+        # Verificar que el usuario es administrador
+        if user_info.get('role') != 'admin':
+            st.error("🔒 **Acceso Denegado**")
+            st.warning("El módulo de Sugerencias Inteligentes está restringido solo para Administradores.")
+            st.info("Contacta al administrador si necesitas acceso a esta función.")
+            
+            if st.button("🔙 Volver al Dashboard"):
+                del st.session_state['current_module']
+                st.rerun()
+            return
+        
+        # Mostrar navegación
+        show_navigation()
+        
+        # Cargar módulo de sugerencias
+        try:
+            from modules.sugerencias.main_sugerencias import main as sugerencias_main
+            sugerencias_main()
+        except ImportError as e:
+            st.error("❌ Error al importar módulo de sugerencias: " + str(e))
+            st.info("📋 Verifica que todos los archivos estén en la carpeta modules/sugerencias/")
+            
+            with st.expander("🔍 Detalles técnicos del error"):
+                st.code(str(e))
+                st.markdown("""
+                **Archivos requeridos:**
+                - main_sugerencias.py
+                - config/settings.py
+                - services/database_service.py
+                - services/weather_service.py
+                - core/suggestion_engine.py
+                - ui/pages.py
+                - ui/components.py
+                - models/data_models.py
                 """)
             
             if st.button("🔙 Volver al Dashboard"):

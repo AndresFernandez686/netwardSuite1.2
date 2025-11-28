@@ -10,7 +10,7 @@
 - **🔒 Seguridad:** Autenticación robusta con permisos granulares
 
 ### 📦 **Módulo de Gestión de Inventario** 
-*(Basado en Netward 1.8)*
+*(Disponible para Todos)*
 - ✅ **Multi-tienda:** Gestión independiente por sucursal
 - ✅ **Control de Stock:** Inventario en tiempo real
 - ✅ **Sistema de Delivery:** Gestión de entregas y ventas
@@ -18,12 +18,21 @@
 - ✅ **Reportes Avanzados:** Métricas y análisis
 
 ### 💰 **Módulo de Cálculo de Nómina** 
-*(Basado en Calculo 1.3 - Solo Administradores)*
+*(Solo Administradores)*
 - ✅ **Procesamiento Excel/PDF:** Soporte múltiples formatos
 - ✅ **Cálculo Inteligente:** Horas normales y especiales
 - ✅ **Gestión de Feriados:** Factor x2 configurable
 - ✅ **Corrección Automática:** Detección de horarios incompletos
 - ✅ **Reportes Detallados:** Exportación a Excel
+
+### 🤖 **Módulo de Sugerencias Inteligentes** 
+*(Solo Administradores)*
+- ✅ **Pronóstico del Clima:** Análisis meteorológico predictivo
+- ✅ **Análisis de Demanda:** Evaluación de patrones de consumo
+- ✅ **Sugerencias por Tienda:** Recomendaciones personalizadas
+- ✅ **Optimización de Stock:** Gestión inteligente de inventario
+- ✅ **Historial y Analytics:** Seguimiento completo
+- ✅ **Reportes IA:** Información detallada con machine learning
 
 ## 🏗️ **Arquitectura del Sistema**
 
@@ -32,13 +41,14 @@
 ├── 📄 main.py                    # Aplicación principal
 ├── 📄 requirements.txt           # Dependencias
 ├── 📁 modules/                   # Módulos de negocio
+│   ├── 📁 inventory/            # Gestión de inventario
 │   ├── 📁 payroll/              # Cálculo de nómina (Solo Admin)
-│   └── 📁 inventory/            # Gestión de inventario
+│   └── 📁 sugerencias/          # Sugerencias IA (Solo Admin)
 ├── 📁 shared/                   # Recursos compartidos
 │   └── auth_unified.py          # Sistema de autenticación
 └── 📁 data/                     # Datos por módulo
-    ├── 📁 payroll/
-    └── 📁 inventory/
+    ├── 📁 inventory/
+    └── 📁 payroll/
 ```
 
 ## 🚀 **Instalación y Configuración**
@@ -91,6 +101,7 @@ streamlit run main.py
 - ✅ Acceso completo al **Dashboard Principal**
 - ✅ **Módulo de Inventario:** Todas las funciones
 - ✅ **Módulo de Nómina:** Cálculo de sueldos exclusivo
+- ✅ **Módulo de Sugerencias IA:** Sistema de recomendaciones
 - ✅ **Gestión de Usuarios:** Configuración de permisos
 - ✅ **Reportes Avanzados:** Métricas consolidadas
 
@@ -98,6 +109,7 @@ streamlit run main.py
 - ✅ Acceso al **Dashboard Principal**
 - ✅ **Módulo de Inventario:** Gestión básica
 - ❌ **Módulo de Nómina:** Restringido
+- ❌ **Módulo de Sugerencias:** Restringido
 - ✅ **Funciones Básicas:** Según permisos asignados
 
 ## 📊 **Módulos Detallados**

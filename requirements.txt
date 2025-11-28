@@ -1,5 +1,5 @@
 # BusinessSuite - Suite de Aplicaciones de Negocio
-# Dependencias combinadas de ambos módulos
+# Dependencias combinadas de todos los módulos
 
 # Core dependencies
 streamlit>=1.28.0
@@ -15,10 +15,21 @@ pdfplumber
 
 # Data visualization
 matplotlib
+plotly>=5.17.0
 
 # Text processing
 regex
 
+# API requests (para módulo de sugerencias)
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+
+# Environment variables (para módulo de sugerencias)
+python-dotenv>=1.0.0
+
+# Geolocation (para módulo de sugerencias)
+geopy>=2.3.0
+
 # Additional utilities for future enhancements
 numpy
-plotly
+typing-extensions>=4.8.0

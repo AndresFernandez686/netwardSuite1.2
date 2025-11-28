@@ -1,0 +1,56 @@
+Producto,Bultos,Unidad,Estado Stock
+Alfajor Almendrado,3,3,STOCK OK
+Alfajor Bombon Cookies and Crema,2,2,STOCK BAJO
+Alfajor Bombon Crocante,0,7,STOCK OK
+Alfajor Bombon Escoces,0,6,STOCK OK
+Alfajor Bombon Suizo,0,4,STOCK BAJO
+Alfajor Bombon Vainilla,0,5,STOCK BAJO
+Alfajor Casatta,3,2,STOCK BAJO
+Almendrado en Caja x 8,3,3,STOCK OK
+Bocaditos Frambuesa,3,3,STOCK OK
+Bocaditos Frutilla,0,9,STOCK OK
+Bombon Crocante Caja x 8,2,3,STOCK BAJO
+Bombon Escoces en Caja x 8,3,2,STOCK BAJO
+Bombon Suizo en Caja x 8,2,4,STOCK OK
+Bombon cookies and cream caja x 8,2,2,STOCK BAJO
+Crocantino,2,3,STOCK BAJO
+Delicia,0,4,STOCK BAJO
+Familiar 1,2,3,STOCK BAJO
+Familiar 2,3,3,STOCK OK
+Familiar 3,3,3,STOCK OK
+Familiar 4,3,3,STOCK OK
+Grido Toy,2,3,STOCK BAJO
+Helado sin Azucar Durazno a la Crema,3,3,STOCK OK
+Helado sin Azucar Frutilla a la Crema,0,0,SIN STOCK
+Helado sin Azucar chocolate sin Tacc,4,3,STOCK OK
+Palito Bombon,0,4,STOCK BAJO
+Palito Bombon Caja x10,3,4,STOCK OK
+Palito Crema Americana,0,6,STOCK OK
+Palito Crema Americana Caja x10,3,4,STOCK OK
+Palito Crema Frutilla,2,3,STOCK BAJO
+Palito Crema Frutilla Caja x10,3,3,STOCK OK
+Palito Frutal Frutilla,0,6,STOCK OK
+Palito Frutal Frutilla Caja x10,3,3,STOCK OK
+Palito Frutal Limon,0,4,STOCK BAJO
+Palito Frutal Limon Caja x10,2,3,STOCK BAJO
+Palito Frutal Naranja,0,6,STOCK OK
+Palito Frutal Naranja Caja x10,3,3,STOCK OK
+Pizza,0,3,STOCK BAJO
+Tentacion Chocolate,1,3,STOCK BAJO
+Tentacion Chocolate con Almendra,1,3,STOCK BAJO
+Tentacion Cookies,0,0,SIN STOCK
+Tentacion Crema Americana,1,3,STOCK BAJO
+Tentacion Dulce de Leche,2,2,STOCK BAJO
+Tentacion Dulce de Leche Granizado,1,3,STOCK BAJO
+Tentacion Frutilla,2,3,STOCK OK
+Tentacion Granizado,2,3,STOCK BAJO
+Tentacion Limon,1,4,STOCK BAJO
+Tentacion Mascarpone,0,0,SIN STOCK
+Tentacion Menta Granizada,0,0,SIN STOCK
+Tentacion Toddy,0,0,SIN STOCK
+Tentacion Vainilla,1,3,STOCK BAJO
+Torta Grido Rellena,1,4,STOCK OK
+Torta Milka,0,0,SIN STOCK
+Yogurt Helado Frutilla sin Tacc,0,0,SIN STOCK
+Yogurt Helado Frutos del Bosque sin Tacc,0,0,SIN STOCK
+Yogurt Helado Mango Maracuya,0,0,SIN STOCK

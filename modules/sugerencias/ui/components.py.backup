@@ -1,0 +1,556 @@
+"""
+Componentes de interfaz de usuario para la aplicación Streamlit
+"""
+# Importaciones seguras
+try:
+    import streamlit as st
+    STREAMLIT_AVAILABLE = True
+except ImportError:
+    STREAMLIT_AVAILABLE = False
+
+try:
+    import plotly.express as px
+    import plotly.graph_objects as go
+    PLOTLY_AVAILABLE = True
+except ImportError:
+    PLOTLY_AVAILABLE = False
+
+try:
+    import pandas as pd
+    PANDAS_AVAILABLE = True  
+except ImportError:
+    PANDAS_AVAILABLE = False
+
+from typing import List, Dict, Optional
+from datetime import datetime
+
+try:
+    from ..models.data_models import Store, WeeklySuggestion
+    MODELS_AVAILABLE = True
+except ImportError:
+    MODELS_AVAILABLE = False
+    # Definir clases básicas como fallback
+    class Store:
+        def __init__(self, **kwargs):
+            for k, v in kwargs.items():
+                setattr(self, k, v)
+    
+    class WeeklySuggestion:
+        def __init__(self, **kwargs):
+            for k, v in kwargs.items():
+                setattr(self, k, v)
+from ..config.settings import UI_CONFIG, APP_TEXTS, PURCHASE_STRATEGIES
+
+
+class UIComponents:
+    """Componentes reutilizables de la interfaz de usuario"""
+    
+    @staticmethod
+    def render_header():
+        """Renderiza el header principal de la aplicación"""
+        st.markdown(f"""
+        # {APP_TEXTS['titles']['main']}
+        ## {APP_TEXTS['titles']['subtitle']}
+        
+        *{APP_TEXTS['titles']['description']}*
+        """)
+    
+    @staticmethod
+    def render_sidebar_navigation() -> str:
+        """
+        Renderiza la navegación en el sidebar
+        
+        Returns:
+            Tab seleccionado
+        """
+        with st.sidebar:
+            st.markdown("###  Panel de Control")
+            
+            tab = st.radio(
+                "Navegación",
+                [
+                    APP_TEXTS['navigation']['configure_store'],
+                    APP_TEXTS['navigation']['view_stores'], 
+                    APP_TEXTS['navigation']['generate_suggestion'],
+                    APP_TEXTS['navigation']['history']
+                ],
+                index=0
+            )
+            
+            return tab
+    
+    @staticmethod
+    def render_holidays_sidebar(holidays: List[Dict]):
+        """
+        Renderiza próximos feriados en el sidebar
+        
+        Args:
+            holidays: Lista de feriados próximos
+        """
+        with st.sidebar:
+            st.markdown("###  Próximos Feriados")
+            
+            if not holidays:
+                st.info("No hay feriados próximos")
+                return
+            
+            for holiday in holidays[:3]:
+                days = holiday['days_until']
+                name = holiday['name']
+                
+                if days == 0:
+                    st.markdown(f" **{name}** - ¡Hoy!")
+                elif days == 1:
+                    st.markdown(f" **{name}** - Mañana")
+                else:
+                    st.markdown(f" **{name}** - En {days} días")
+    
+    @staticmethod
+    def render_store_card(store) -> None:
+        """
+        Renderiza una tarjeta de tienda
+        
+        Args:
+            store: Diccionario o Store a renderizar
+        """
+        # Manejar tanto diccionarios como objetos
+        store_id = store.get('id') if isinstance(store, dict) else store.id
+        store_name = store.get('name') if isinstance(store, dict) else store.name
+        store_city = store.get('city') if isinstance(store, dict) else store.city
+        store_country = store.get('country') if isinstance(store, dict) else store.country
+        store_lat = store.get('lat') if isinstance(store, dict) else store.lat
+        store_lon = store.get('lon') if isinstance(store, dict) else store.lon
+        store_demand = store.get('base_demand') if isinstance(store, dict) else store.base_demand
+        
+        with st.container():
+            # Header de la tarjeta
+            st.markdown(f"""
+            <div style='padding: 1rem; border: 1px solid #ddd; border-radius: 10px; margin: 1rem 0; background: #f0f2f6;'>
+                <h3> {store_name}</h3>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            col1, col2 = st.columns([3, 1])
+            
+            with col1:
+                st.markdown("** Ubicación:**")
+                st.write(f" {store_city}, {store_country}")
+                st.write(f" Lat: {store_lat:.4f}, Lon: {store_lon:.4f}")
+            
+            with col2:
+                st.markdown(f"** ID: {store_id}**")
+                if st.button(f" Ver en Mapa", key=f"map_{store_id}"):
+                    st.session_state[f"show_map_{store_id}"] = True
+            
+            # Mostrar mapa si fue solicitado
+            if st.session_state.get(f"show_map_{store_id}", False):
+                UIComponents.render_store_map(store)
+                if st.button(f" Ocultar Mapa", key=f"hide_map_{store_id}"):
+                    st.session_state[f"show_map_{store_id}"] = False
+                    st.rerun()
+            
+            st.divider()
+    
+    @staticmethod
+    def render_store_map(store):
+        """
+        Renderiza mapa de una tienda
+        
+        Args:
+            store: Diccionario o Store a mostrar en el mapa
+        """
+        store_lat = store.get('lat') if isinstance(store, dict) else store.lat
+        store_lon = store.get('lon') if isinstance(store, dict) else store.lon
+        map_df = pd.DataFrame([[store_lat, store_lon]], columns=['lat', 'lon'])
+        st.map(map_df, zoom=13)
+    
+    @staticmethod
+    def render_weather_chart(forecast: dict) -> None:
+        """
+        Renderiza gráfico del pronóstico meteorológico
+        
+        Args:
+            forecast: Pronóstico semanal
+        """
+        daily_weather = forecast.get('daily_weather', [])
+        if not daily_weather:
+            st.warning("No hay datos meteorológicos disponibles")
+            return
+        
+        # Preparar datos
+        dates = [day.date for day in daily_weather]
+        temp_max = [day.temp_max for day in daily_weather]
+        temp_min = [day.temp_min for day in daily_weather]
+        temp_avg = [day.temp_avg for day in daily_weather]
+        
+        # Crear gráfico
+        fig = go.Figure()
+        
+        # Temperatura máxima
+        fig.add_trace(go.Scatter(
+            x=dates, y=temp_max,
+            mode='lines+markers',
+            name='Temp Máxima',
+            line=dict(color='red', width=2),
+            marker=dict(size=8)
+        ))
+        
+        # Temperatura mínima
+        fig.add_trace(go.Scatter(
+            x=dates, y=temp_min,
+            mode='lines+markers', 
+            name='Temp Mínima',
+            line=dict(color='blue', width=2),
+            marker=dict(size=8)
+        ))
+        
+        # Temperatura promedio
+        fig.add_trace(go.Scatter(
+            x=dates, y=temp_avg,
+            mode='lines+markers',
+            name='Temp Promedio',
+            line=dict(color='orange', width=2, dash='dash'),
+            marker=dict(size=6)
+        ))
+        
+        # Configurar layout
+        fig.update_layout(
+            title=' Pronóstico de Temperatura Semanal',
+            xaxis_title='Fecha',
+            yaxis_title='Temperatura (°C)',
+            hovermode='x unified',
+            height=400,
+            showlegend=True
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+    
+    @staticmethod
+    def render_demand_factors_chart(forecast: dict) -> None:
+        """
+        Renderiza gráfico de factores de demanda
+        
+        Args:
+            forecast: Pronóstico semanal
+        """
+        daily_weather = forecast.get('daily_weather', [])
+        if not daily_weather:
+            st.warning("No hay datos para mostrar factores de demanda")
+            return
+        
+        # Preparar datos
+        dates = [day.date for day in daily_weather]
+        factors = [day.get_temp_factor() for day in daily_weather]
+        colors = ['red' if f > 2.0 else 'orange' if f > 1.5 else 'green' if f >= 1.0 else 'blue' for f in factors]
+        
+        # Crear gráfico de barras
+        fig = go.Figure()
+        
+        fig.add_trace(go.Bar(
+            x=dates, y=factors,
+            name='Factor de Demanda',
+            text=[f"{f:.1f}x" for f in factors],
+            textposition='outside',
+            marker_color=colors
+        ))
+        
+        # Línea de referencia (demanda normal)
+        fig.add_hline(y=1.0, line_dash="dash", line_color="gray", 
+                     annotation_text="Demanda Normal")
+        
+        fig.update_layout(
+            title=' Factores de Demanda por Día',
+            xaxis_title='Fecha',
+            yaxis_title='Factor de Multiplicación',
+            height=400,
+            showlegend=False
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+    
+    @staticmethod
+    def render_suggestion_summary(suggestion: WeeklySuggestion, current_inventory: List[Dict] = None) -> None:
+        """
+        Renderiza resumen de sugerencia con formato detallado
+        
+        Args:
+            suggestion: Sugerencia semanal
+            current_inventory: Inventario actual (opcional, para mostrar verificación de lógica)
+        """
+        from ..config.productos_completos import PRODUCT_SPECS_COMPLETO
+        
+        # ========== CAPACIDAD ==========
+        st.subheader("📦 CAPACIDAD")
+        
+        if suggestion.capacidad_total > 0:
+            capacidad_data = f"""
+```
+Capacidad Total:        {suggestion.capacidad_total} bultos
+Bultos Actuales:        {suggestion.capacidad_actual} bultos
+Espacio Disponible:     {suggestion.capacidad_disponible} bultos
+Bultos Sugeridos:       {suggestion.total_bultos} bultos
+Total Final:            {suggestion.capacidad_actual + suggestion.total_bultos} / {suggestion.capacidad_total} bultos
+Ocupación Final:        {((suggestion.capacidad_actual + suggestion.total_bultos) / suggestion.capacidad_total * 100):.1f}%
+```
+            """
+            st.markdown(capacidad_data)
+            
+            # Verificar sobrecarga
+            if suggestion.capacidad_actual + suggestion.total_bultos > suggestion.capacidad_total:
+                st.error("❌ ERROR: Sobrecarga de capacidad detectada")
+            else:
+                st.success("✅ CAPACIDAD RESPETADA: No hay sobrecarga")
+        
+        st.divider()
+        
+        # ========== INVERSIÓN ==========
+        st.subheader("💰 INVERSIÓN")
+        
+        inversion_data = f"""
+```
+Total:                  ₱{suggestion.total_investment:,.0f}
+ROI Esperado:           {suggestion.expected_roi*100:.1f}%
+```
+        """
+        st.markdown(inversion_data)
+        
+        st.divider()
+        
+        # ========== PRODUCTOS SUGERIDOS (DETALLADO) ==========
+        st.subheader("📋 PRODUCTOS SUGERIDOS (DETALLADO)")
+        
+        if suggestion.product_suggestions:
+            # Ordenar productos alfabéticamente
+            productos_ordenados = sorted(
+                suggestion.product_suggestions, 
+                key=lambda x: x.product_name
+            )
+            
+            # Crear tabla con formato fijo
+            tabla_productos = "```\n"
+            tabla_productos += f"{'Producto':<35} {'Bultos':>8} {'Unidades':>10} {'Inversión':>15}\n"
+            tabla_productos += f"{'-'*35} {'-'*8} {'-'*10} {'-'*15}\n"
+            
+            total_unidades = 0
+            for prod in productos_ordenados:
+                inversion = prod.suggested_bulks * PRODUCT_SPECS_COMPLETO.get(prod.product_id, {}).get('price_cost_box', 0)
+                total_unidades += prod.suggested_quantity
+                tabla_productos += f"{prod.product_name:<35} {prod.suggested_bulks:>8} {prod.suggested_quantity:>10.0f} ₱{inversion:>14,.0f}\n"
+            
+            tabla_productos += f"{'-'*35} {'-'*8} {'-'*10} {'-'*15}\n"
+            tabla_productos += f"{'TOTAL':<35} {suggestion.total_bultos:>8} {total_unidades:>10.0f} ₱{suggestion.total_investment:>14,.0f}\n"
+            tabla_productos += "```"
+            
+            st.markdown(tabla_productos)
+        else:
+            st.warning("⚠️  No se generaron sugerencias")
+        
+        st.divider()
+        
+        # ========== VERIFICACIÓN DE LÓGICA DE ESTADOS ==========
+        if current_inventory and suggestion.product_suggestions:
+            st.subheader("🔍 VERIFICACIÓN DE LÓGICA DE ESTADOS")
+            
+            # Crear diccionario de inventario
+            inv_dict = {item['Producto']: item for item in current_inventory}
+            
+            # Tabla de verificación
+            tabla_verificacion = "```\n"
+            tabla_verificacion += f"{'Producto':<35} {'Estado':<15} {'Actual':>8} {'Sugerido':>10} {'Lógica':<35}\n"
+            tabla_verificacion += f"{'-'*35} {'-'*15} {'-'*8} {'-'*10} {'-'*35}\n"
+            
+            for prod in productos_ordenados:
+                # Buscar en inventario
+                inv_item = None
+                for inv_name, inv_data in inv_dict.items():
+                    if inv_name.lower() in prod.product_name.lower() or prod.product_name.lower() in inv_name.lower():
+                        inv_item = inv_data
+                        break
+                
+                if inv_item:
+                    estado = inv_item['Estado Stock']
+                    bultos_actual = inv_item['Bultos']
+                    bultos_sugerido = prod.suggested_bulks
+                    
+                    # Determinar lógica esperada
+                    if 'OK' in estado.upper():
+                        if bultos_actual <= 3:
+                            logica_esperada = "✓ STOCK OK (≤3): +1 bulto"
+                        else:
+                            logica_esperada = "✓ STOCK OK (>3): NO sugerir"
+                    elif 'BAJO' in estado.upper():
+                        logica_esperada = "✓ STOCK BAJO: +2 bultos"
+                    elif 'SIN' in estado.upper():
+                        logica_esperada = "✓ SIN STOCK: +3 bultos"
+                    else:
+                        logica_esperada = "Estado desconocido"
+                    
+                    tabla_verificacion += f"{prod.product_name:<35} {estado:<15} {bultos_actual:>8} {bultos_sugerido:>10} {logica_esperada:<35}\n"
+            
+            tabla_verificacion += "```"
+            st.markdown(tabla_verificacion)
+            
+            st.divider()
+            
+            # ========== PRODUCTOS NO SUGERIDOS (Sobremercadería) ==========
+            st.subheader("⊛ PRODUCTOS NO SUGERIDOS (Sobremercadería)")
+            
+            productos_sugeridos_nombres = {p.product_name.lower() for p in suggestion.product_suggestions}
+            
+            no_sugeridos_texto = "```\n"
+            tiene_no_sugeridos = False
+            
+            for item in current_inventory:
+                producto = item['Producto']
+                bultos = item['Bultos']
+                estado = item['Estado Stock']
+                
+                # Buscar si fue sugerido
+                fue_sugerido = any(producto.lower() in nombre or nombre in producto.lower() for nombre in productos_sugeridos_nombres)
+                
+                if not fue_sugerido and 'OK' in estado.upper() and bultos > 3:
+                    no_sugeridos_texto += f"   ✓ {producto:<30} ({bultos} bultos) - SOBREMERCADERÍA, correctamente NO sugerido\n"
+                    tiene_no_sugeridos = True
+            
+            no_sugeridos_texto += "```"
+            
+            if tiene_no_sugeridos:
+                st.markdown(no_sugeridos_texto)
+            else:
+                st.info("No hay productos con sobremercadería")
+            
+            st.divider()
+        
+        # ========== RESUMEN FINAL ==========
+        st.subheader("📋 RESUMEN FINAL")
+        
+        if current_inventory:
+            productos_inventario = len(current_inventory)
+            productos_sugeridos = len(suggestion.product_suggestions)
+            productos_no_sugeridos = productos_inventario - productos_sugeridos
+            
+            resumen = f"""
+```
+✅ Productos en inventario:         {productos_inventario}
+✅ Productos sugeridos:             {productos_sugeridos}
+⊛  Productos NO sugeridos:          {productos_no_sugeridos} (sobremercadería o sin match)
+
+📊 Capacidad: {suggestion.capacidad_actual} actual + {suggestion.total_bultos} sugeridos = {suggestion.capacidad_actual + suggestion.total_bultos} / {suggestion.capacidad_total} total
+```
+            """
+        else:
+            resumen = f"""
+```
+✅ Productos sugeridos:             {len(suggestion.product_suggestions)}
+💰 Inversión total:                 ₱{suggestion.total_investment:,.0f}
+📊 ROI esperado:                   {suggestion.expected_roi*100:.1f}%
+```
+            """
+        
+        st.markdown(resumen)
+    
+    @staticmethod
+    def render_products_table(products: List[Dict]) -> None:
+        """
+        Renderiza tabla de productos sugeridos
+        
+        Args:
+            products: Lista de productos
+        """
+        if not products:
+            st.warning("No hay productos sugeridos")
+            return
+        
+        # Preparar datos para la tabla
+        df_data = []
+        for product in products:
+            df_data.append({
+                " Producto": product.product_name,
+                " Bultos": f"{product.suggested_bulks}",
+                " Cantidad": f"{product.suggested_quantity:.0f} {product.unit}",
+                " Demanda Base": f"{product.base_daily_demand:.1f}/semana",
+                " Proyección Semanal": f"{product.projected_weekly_demand:.0f}",
+                " Confianza": f"{product.confidence * 100:.0f}%"
+            })
+        
+        df = pd.DataFrame(df_data)
+        
+        # Configurar el dataframe para mejor visualización
+        st.dataframe(
+            df,
+            use_container_width=True,
+            hide_index=True
+        )
+    
+    @staticmethod
+    def render_strategy_selector() -> str:
+        """
+        Renderiza selector de estrategia
+        
+        Returns:
+            Estrategia seleccionada
+        """
+        st.subheader(" Selecciona tu Estrategia de Compra")
+        
+        strategy_options = list(PURCHASE_STRATEGIES.keys())
+        strategy_names = [PURCHASE_STRATEGIES[s]['name'] for s in strategy_options]
+        strategy_descriptions = [PURCHASE_STRATEGIES[s]['description'] for s in strategy_options]
+        
+        # Mostrar opciones con descripciones
+        for i, (name, desc) in enumerate(zip(strategy_names, strategy_descriptions)):
+            st.markdown(f"**{name}**: {desc}")
+        
+        # Selector
+        selected_index = st.radio(
+            "Elige tu estrategia:",
+            range(len(strategy_options)),
+            format_func=lambda x: strategy_names[x],
+            horizontal=True
+        )
+        
+        return strategy_options[selected_index]
+    
+    @staticmethod
+    def render_loading_spinner(message: str = "Procesando..."):
+        """
+        Renderiza spinner de carga
+        
+        Args:
+            message: Mensaje a mostrar
+        """
+        with st.spinner(message):
+            st.empty()
+    
+    @staticmethod
+    def render_success_message(message: str):
+        """
+        Renderiza mensaje de éxito
+        
+        Args:
+            message: Mensaje a mostrar
+        """
+        st.success(message)
+    
+    @staticmethod
+    def render_error_message(message: str):
+        """
+        Renderiza mensaje de error
+        
+        Args:
+            message: Mensaje de error
+        """
+        st.error(message)
+    
+    @staticmethod
+    def render_info_message(message: str):
+        """
+        Renderiza mensaje informativo
+        
+        Args:
+            message: Mensaje informativo
+        """
+        st.info(message)
+
+
+# Instancia global de componentes UI
+ui_components = UIComponents()

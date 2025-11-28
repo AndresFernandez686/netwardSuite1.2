@@ -1,0 +1,791 @@
+
+"""
+Páginas de la aplicación Streamlit
+"""
+import os
+
+# Importaciones seguras
+try:
+    import streamlit as st
+    STREAMLIT_AVAILABLE = True
+except ImportError:
+    STREAMLIT_AVAILABLE = False
+
+try:
+    import pandas as pd
+    PANDAS_AVAILABLE = True
+except ImportError:
+    PANDAS_AVAILABLE = False
+
+from typing import List, Optional
+from datetime import datetime, timedelta
+
+# Importar modelos y servicios de manera segura
+try:
+    from ..models.data_models import Store, LocationInfo
+    MODELS_AVAILABLE = True
+except ImportError:
+    MODELS_AVAILABLE = False
+    # Definir clases básicas como fallback
+    class Store:
+        def __init__(self, **kwargs):
+            for k, v in kwargs.items():
+                setattr(self, k, v)
+    
+    class LocationInfo:
+        def __init__(self, **kwargs):
+            for k, v in kwargs.items():
+                setattr(self, k, v)
+
+try:
+    from ..services.location_service import location_service
+    LOCATION_SERVICE_AVAILABLE = True
+except ImportError:
+    LOCATION_SERVICE_AVAILABLE = False
+from ..services.database_service import db_service
+from ..services.weather_service import weather_service
+from ..core.suggestion_engine import suggestion_engine
+from ..ui.components import ui_components
+from ..config.settings import PARAGUAY_HOLIDAYS
+
+
+class Pages:
+    """Páginas de la aplicación"""
+    
+    @staticmethod
+    def configure_store_page():
+        """Página para configurar una nueva tienda"""
+        st.header("🏪 Configurar Nueva Tienda")
+        
+        st.markdown("""
+        ### ¡Bienvenido! Configuremos tu heladería Grido
+        
+        Para generar sugerencias precisas, necesitamos algunos datos básicos de tu tienda.
+        Puedes detectar automáticamente tu ubicación o ingresarla manualmente.
+        """)
+        
+        # Sección de detección automática
+        st.subheader("🎯 Detección Automática de Ubicación")
+        
+        col1, col2 = st.columns([1, 1])
+        
+        with col1:
+            if st.button("🌍 Detectar Mi Ubicación", type="primary"):
+                with st.spinner("Detectando ubicación..."):
+                    try:
+                        location_info = location_service.detect_location_by_ip()
+                        if location_info:
+                            st.session_state.detected_location = location_info
+                            ui_components.render_success_message(
+                                f"📍 Ubicación detectada: {location_info.city}, {location_info.country}",
+                                balloons=True
+                            )
+                        else:
+                            ui_components.render_error_message("No se pudo detectar la ubicación automáticamente")
+                    except Exception as e:
+                        ui_components.render_error_message(f"Error detectando ubicación: {e}")
+        
+        with col2:
+            if 'detected_location' in st.session_state:
+                info = st.session_state.detected_location
+                st.success("✅ **Detectado:**")
+                st.write(f"📍 **Ciudad:** {info.city}")
+                st.write(f"🏳️ **País:** {info.country}")
+                st.write(f"📊 **Coordenadas:** {info.lat:.4f}, {info.lon:.4f}")
+        
+        st.divider()
+        
+        # Sección de búsqueda de tiendas con Google Maps
+        st.subheader("🔍 Buscar Tienda Grido")
+        st.markdown("""
+        **💡 Busca tu tienda en Google Maps** y haz clic en ella para ver sus coordenadas.
+        Luego copia la información en el formulario de abajo.
+        """)
+        
+        # Guía de uso del buscador de Google Maps
+        with st.expander("📖 Cómo usar el buscador de Google Maps"):
+            st.markdown("""
+            **🎯 Pasos para encontrar tu tienda:**
+            
+            1. 🔍 **Busca en el mapa de abajo:** Escribe "Grido" + tu ubicación
+               - Ejemplos: *"Grido Asunción"*, *"Grido Villa Morra"*, *"Grido Shopping del Sol"*
+            
+            2. 📍 **Haz clic en el marcador** de tu tienda en el mapa
+            
+            3. 👆 **Haz clic derecho** en la ubicación exacta del marcador
+            
+            4. 📋 **Copia las coordenadas** que aparecen (Ej: -25.2637, -57.5759)
+            
+            5. 📝 **Pégalas en el formulario de abajo** en los campos de Latitud y Longitud
+            
+            **💡 Tip:** También puedes usar el botón "📍 Usar esta ubicación" que aparecerá abajo del mapa
+            """)
+        
+        # Obtener Google API Key
+        google_api_key = os.getenv('GOOGLE_PLACES_API_KEY', '')
+        
+        if google_api_key and google_api_key != 'demo':
+            # Buscador interactivo de Google Maps
+            st.markdown("### 🗺️ Buscador de Google Maps")
+            
+            # Input para búsqueda inicial
+            search_query = st.text_input(
+                "🔍 Buscar tu tienda Grido",
+                placeholder="Ej: 'Grido Asunción', 'Grido Villa Morra', 'Grido Shopping del Sol'",
+                help="Busca tu tienda y haz clic en el marcador para ver las coordenadas"
+            )
+            
+            # Preparar la query para Google Maps
+            if search_query:
+                search_encoded = search_query.replace(' ', '+')
+            else:
+                search_encoded = "Grido+Paraguay"
+            
+            # Iframe de Google Maps con búsqueda
+            st.markdown(
+                f'<iframe width="100%" height="500" frameborder="0" style="border:0" '
+                f'src="https://www.google.com/maps/search/{search_encoded}/@-25.2637,-57.5759,12z" '
+                f'allowfullscreen></iframe>',
+                unsafe_allow_html=True
+            )
+            
+            st.info("💡 **Instrucciones:** Busca tu tienda en el mapa ↑, haz clic en ella, luego clic derecho para copiar las coordenadas y pégalas en el formulario ↓")
+            
+            # Botón para capturar coordenadas manualmente
+            col1, col2 = st.columns(2)
+            with col1:
+                manual_lat = st.number_input("Latitud copiada", value=-25.2637, format="%.6f", help="Pega aquí la latitud del mapa")
+            with col2:
+                manual_lon = st.number_input("Longitud copiada", value=-57.5759, format="%.6f", help="Pega aquí la longitud del mapa")
+            
+            if st.button("📍 Usar esta ubicación del mapa", type="primary"):
+                st.session_state.map_selected_location = {
+                    'lat': manual_lat,
+                    'lon': manual_lon,
+                    'from_map': True
+                }
+                st.success(f"✅ Ubicación capturada: {manual_lat:.4f}, {manual_lon:.4f}")
+                st.rerun()
+        else:
+            st.warning("⚠️ Para usar el buscador de Google Maps, configura `GOOGLE_PLACES_API_KEY` en tu archivo `.env`")
+            
+            # Sistema de búsqueda alternativo
+            col1, col2 = st.columns([2, 1])
+            
+            with col1:
+                search_query = st.text_input(
+                    "🔍 Buscar tienda (Base de datos local)",
+                    placeholder="Ej: 'Grido Seminario', 'Grido Villa Morra', 'Grido Shopping'",
+                    help="Búsqueda en base de datos local de tiendas Grido"
+                )
+            
+            with col2:
+                search_type = st.selectbox(
+                    "Tipo de búsqueda",
+                    ["🏪 Solo tiendas Grido", "📍 Dirección general"],
+                    help="Selecciona el tipo de búsqueda",
+                    index=0
+                )
+        
+        # Solo mostrar búsqueda local si no hay Google Maps API
+        if not google_api_key or google_api_key == 'demo':
+            if search_query and len(search_query) >= 3:
+                with st.spinner("🔍 Buscando tiendas..."):
+                    try:
+                        if search_type == "🏪 Solo tiendas Grido":
+                            # Usar búsqueda inteligente con contexto geográfico
+                            if LOCATION_SERVICE_AVAILABLE:
+                                grido_results = location_service.search_grido_with_context(search_query)
+                            
+                            if grido_results:
+                                st.success(f"🎉 Encontradas {len(grido_results)} tiendas Grido:")
+                                
+                                # Mostrar estadísticas de búsqueda
+                                exact_matches = len([r for r in grido_results if r.get('match_type') == 'exact'])
+                                fuzzy_matches = len([r for r in grido_results if r.get('match_type') == 'fuzzy'])
+                                
+                                if exact_matches > 0 and fuzzy_matches > 0:
+                                    st.info(f"📊 {exact_matches} coincidencias exactas, {fuzzy_matches} similares")
+                                elif fuzzy_matches > 0:
+                                    st.info(f"🔍 Búsqueda inteligente encontró {fuzzy_matches} tiendas similares")
+                                
+                                for i, store in enumerate(grido_results):
+                                    with st.container():
+                                        col1, col2, col3 = st.columns([3, 2, 1])
+                                        
+                                        with col1:
+                                            # Mostrar indicador de calidad de coincidencia
+                                            score = store.get('score', 0)
+                                            match_type = store.get('match_type', 'unknown')
+                                            source = store.get('source', 'unknown')
+                                            
+                                            # Iconos según tipo de coincidencia
+                                            if match_type == 'geographic':
+                                                quality_icon = "🗺️"
+                                                match_desc = "Coincidencia geográfica"
+                                            elif score >= 0.9:
+                                                quality_icon = "🎯"
+                                                match_desc = "Coincidencia exacta"
+                                            elif score >= 0.7:
+                                                quality_icon = "🎪"
+                                                match_desc = "Coincidencia alta"
+                                            else:
+                                                quality_icon = "🔍"
+                                                match_desc = "Coincidencia parcial"
+                                            
+                                            st.markdown(f"**{quality_icon} {store['name']}**")
+                                            st.markdown(f"📍 {store['address']}")
+                                            st.markdown(f"🏙️ {store['city'].replace('_', ' ').title()}")
+                                            
+                                            # Mostrar términos de coincidencia geográfica si están disponibles
+                                            if store.get('matched_terms'):
+                                                matched_terms = ', '.join(store['matched_terms'])
+                                                st.markdown(f"🎯 **Coincidencias:** {matched_terms}")
+                                            
+                                            # Mostrar teléfono si está disponible
+                                            if store.get('phone'):
+                                                st.markdown(f"📞 {store['phone']}")
+                                        
+                                        with col2:
+                                            st.markdown(f"**📊 Información:**")
+                                            st.markdown(f"Lat: {store['lat']:.4f}")
+                                            st.markdown(f"Lon: {store['lon']:.4f}")
+                                            
+                                            # Mostrar puntaje de relevancia
+                                            score_percent = int(score * 100)
+                                            st.markdown(f"🎯 Relevancia: {score_percent}%")
+                                            
+                                            # Mostrar tipo de búsqueda usado
+                                            source_icons = {
+                                                'local_geographic': '🗺️',
+                                                'local_traditional': '💾',
+                                                'google_maps': '🔍',
+                                                'openstreetmap': '🌐',
+                                                'online_geographic': '🌐'
+                                            }
+                                            source_icon = source_icons.get(source, '❓')
+                                            st.markdown(f"{source_icon} {match_desc}")
+                                            
+                                            # Información adicional para resultados de Google Maps
+                                            if source == 'google_maps':
+                                                rating = store.get('rating', 0)
+                                                if rating > 0:
+                                                    stars = '⭐' * int(rating)
+                                                    st.markdown(f"⭐ **{rating}/5** {stars}")
+                                                
+                                                total_reviews = store.get('user_ratings_total', 0)
+                                                if total_reviews > 0:
+                                                    st.markdown(f"👥 {total_reviews} reseñas")
+                                        
+                                        with col3:
+                                            if st.button(f"✅ Usar", key=f"grido_{i}"):
+                                                st.session_state.selected_store = {
+                                                    'name': store['name'],
+                                                    'lat': store['lat'],
+                                                    'lon': store['lon'],
+                                                    'city': store['city'].replace('_', ' ').title(),
+                                                    'country': 'Paraguay',
+                                                    'address': store['address']
+                                                }
+                                                st.success(f"🎉 Tienda '{store['name']}' seleccionada!")
+                                                st.rerun()
+                                        
+                                        st.divider()
+                            else:
+                                # Sugerencias de búsqueda si no se encuentra nada
+                                st.warning("🔍 No se encontraron tiendas Grido con ese término.")
+                                st.markdown("""
+                                **💡 Sugerencias de búsqueda:**
+                                - Prueba con nombres de ciudades: *Asunción*, *Ciudad del Este*, *Encarnación*
+                                - Usa nombres de barrios: *Centro*, *Villa Morra*, *Las Mercedes*
+                                - Términos generales: *Shopping*, *Aeropuerto*, *Terminal*
+                                - También puedes usar sinónimos: *CDE* por Ciudad del Este, *Asu* por Asunción
+                                """)
+                        else:
+                            st.error("❌ Servicio de búsqueda no disponible")
+                    
+                    elif search_type == "📍 Dirección general":
+                        # Buscar usando el servicio de ubicación
+                        if LOCATION_SERVICE_AVAILABLE:
+                                search_results = location_service.search_address(search_query)
+                                
+                                if search_results:
+                                    st.success(f"🎉 Encontradas {len(search_results)} ubicaciones:")
+                                    
+                                    for i, result in enumerate(search_results[:3]):  # Limitar a 3 resultados
+                                        with st.container():
+                                            col1, col2, col3 = st.columns([3, 2, 1])
+                                            
+                                            with col1:
+                                                st.markdown(f"**📍 {result.get('address', 'Dirección')}**")
+                                                st.markdown(f"🏙️ {result.get('city', '')}, {result.get('country', '')}")
+                                            
+                                            with col2:
+                                                st.markdown(f"**📊 Coordenadas:**")
+                                                st.markdown(f"Lat: {result['lat']:.4f}")
+                                                st.markdown(f"Lon: {result['lon']:.4f}")
+                                            
+                                            with col3:
+                                                if st.button(f"✅ Usar", key=f"address_{i}"):
+                                                    st.session_state.selected_store = {
+                                                        'name': search_query,
+                                                        'lat': result['lat'],
+                                                        'lon': result['lon'],
+                                                        'city': result.get('city', ''),
+                                                        'country': result.get('country', ''),
+                                                        'address': result.get('address', '')
+                                                    }
+                                                    st.success(f"🎉 Ubicación seleccionada!")
+                                                    st.rerun()
+                                            
+                                            st.divider()
+                                else:
+                                    st.warning("🔍 No se encontraron resultados. Verifica la dirección o usa coordenadas manuales.")
+                            else:
+                                st.warning("⚠️ Servicio de búsqueda no disponible. Usa coordenadas manuales.")
+                    
+                    except Exception as e:
+                        st.error(f"❌ Error en la búsqueda: {e}")
+                        import logging
+                        logger = logging.getLogger(__name__)
+                        logger.error(f"Error en búsqueda: {e}")
+        
+        # Mostrar tienda seleccionada CON MAPA DE CONFIRMACIÓN
+        if 'selected_store' in st.session_state:
+            store = st.session_state.selected_store
+            st.success("🎯 **Tienda seleccionada:**")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.write(f"🏪 **Nombre:** {store['name']}")
+                st.write(f"📍 **Dirección:** {store.get('address', 'N/A')}")
+                st.write(f"🏙️ **Ciudad:** {store['city']}")
+            with col2:
+                st.write(f"🏳️ **País:** {store['country']}")
+                st.write(f"📊 **Coordenadas:** {store['lat']:.4f}, {store['lon']:.4f}")
+            
+            # MAPA DE VISTA PREVIA PARA CONFIRMAR UBICACIÓN
+            st.markdown("### 🗺️ Confirma que esta es tu tienda:")
+            
+            # Obtener Google API Key
+            google_api_key = os.getenv('GOOGLE_PLACES_API_KEY', '')
+            
+            if google_api_key and google_api_key != 'demo':
+                # Google Maps con marcador y nombre de tienda
+                store_lat = store['lat']
+                store_lon = store['lon']
+                store_name = store['name'].replace(' ', '+')
+                store_address = store.get('address', '').replace(' ', '+')
+                
+                # URL de Google Maps para abrir (con búsqueda por nombre + dirección para mejor precisión)
+                google_maps_link = f"https://www.google.com/maps/search/?api=1&query={store_name}+{store_address}"
+                
+                # Usar API de Google Maps Embed con el nombre de la tienda para encontrar el lugar exacto
+                # Esto es más preciso que solo coordenadas porque Google identifica el negocio
+                embed_query = f"{store_name},+{store_address}".replace(' ', '+')
+                
+                # Iframe con Google Maps usando Place mode para encontrar el negocio exacto
+                st.markdown(
+                    f'<iframe width="100%" height="450" frameborder="0" style="border:0;border-radius:8px;" '
+                    f'src="https://www.google.com/maps?q={embed_query}&output=embed&z=18" '
+                    f'allowfullscreen loading="lazy"></iframe>',
+                    unsafe_allow_html=True
+                )
+                
+                st.markdown(f"[📍 Abrir en Google Maps App]({google_maps_link})")
+                st.caption(f"📍 Coordenadas exactas: {store_lat:.6f}, {store_lon:.6f}")
+            else:
+                # Fallback a mapa de Streamlit
+                map_df = pd.DataFrame([[store['lat'], store['lon']]], columns=['lat', 'lon'])
+                st.map(map_df, zoom=17)
+            
+            # Botones de acción
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("✅ Confirmar y Continuar", type="primary", use_container_width=True):
+                    st.success("✅ ¡Ubicación confirmada! Completa el formulario abajo.")
+            with col2:
+                if st.button("🗑️ Buscar otra tienda", use_container_width=True):
+                    del st.session_state.selected_store
+                    st.rerun()
+        
+        st.divider()
+        
+        # Formulario de configuración
+        st.subheader("📝 Información de la Tienda")
+        
+        # Prioridad: tienda seleccionada > ubicación del mapa > ubicación detectada > valores por defecto
+        if 'selected_store' in st.session_state:
+            default_values = st.session_state.selected_store
+            st.info("📋 Usando datos de la tienda seleccionada. Puedes modificarlos si es necesario.")
+        elif 'map_selected_location' in st.session_state:
+            map_loc = st.session_state.map_selected_location
+            default_values = {
+                'lat': map_loc['lat'],
+                'lon': map_loc['lon'],
+                'name': '',
+                'city': '',
+                'country': 'Paraguay'
+            }
+            st.success("✅ Usando coordenadas del mapa de Google Maps. Completa el nombre y ciudad de tu tienda.")
+        elif 'detected_location' in st.session_state:
+            default_values = st.session_state.detected_location
+            st.info("📋 Usando ubicación detectada automáticamente. Puedes modificarla si es necesario.")
+        else:
+            default_values = LocationInfo(-25.2637, -57.5759, "Asunción", "Paraguay")
+        
+        name = st.text_input(
+            "🏪 Nombre de la tienda", 
+            value=getattr(default_values, 'name', ''),
+            placeholder="Ej: Grido Asunción Centro"
+        )
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            city = st.text_input(
+                "🏙️ Ciudad", 
+                value=getattr(default_values, 'city', ''), 
+                placeholder="Ej: Asunción"
+            )
+            country = st.text_input(
+                "🏳️ País", 
+                value=getattr(default_values, 'country', 'Paraguay'), 
+                placeholder="Ej: Paraguay"
+            )
+        
+        with col2:
+            lat = st.number_input(
+                "📊 Latitud", 
+                value=float(getattr(default_values, 'lat', -25.2637)), 
+                format="%.6f", 
+                help="Coordenada geográfica Norte-Sur"
+            )
+            lon = st.number_input(
+                "📊 Longitud", 
+                value=float(getattr(default_values, 'lon', -57.5759)), 
+                format="%.6f",
+                help="Coordenada geográfica Este-Oeste"
+            )
+        
+        # Mostrar mapa de confirmación final
+        if lat and lon and 'selected_store' not in st.session_state:
+            st.subheader("📍 Vista Previa de Ubicación")
+            st.info("💡 Verifica que las coordenadas correspondan a tu tienda")
+            
+            # Obtener Google API Key
+            google_api_key = os.getenv('GOOGLE_PLACES_API_KEY', '')
+            
+            if google_api_key and google_api_key != 'demo':
+                # Google Maps con zoom más cercano para ver detalles
+                google_maps_link = f"https://www.google.com/maps/search/?api=1&query={lat},{lon}"
+                
+                st.markdown(
+                    f'<iframe width="100%" height="450" frameborder="0" style="border:0" '
+                    f'src="https://maps.google.com/maps?q={lat},{lon}&z=17&output=embed" '
+                    f'allowfullscreen></iframe>',
+                    unsafe_allow_html=True
+                )
+                
+                st.markdown(f"[🗺️ Abrir en Google Maps]({google_maps_link})")
+            else:
+                # Fallback a mapa de Streamlit
+                map_df = pd.DataFrame([[lat, lon]], columns=['lat', 'lon'])
+                st.map(map_df, zoom=15)
+                st.caption("💡 Configura GOOGLE_PLACES_API_KEY para ver el mapa de Google Maps")
+        
+        st.divider()
+        
+        # Configuración de demanda base
+        st.subheader("⚙️ Configuración de Demanda Base")
+        
+        st.markdown("""
+        Estos son los valores promedio de venta por día en condiciones normales (temperatura 20-25°C).
+        La IA los ajustará automáticamente según el clima y eventos especiales.
+        """)
+        
+        # Interfaz más amigable para configurar demanda
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.markdown("**🍭 Productos por Unidades**")
+            palitos_per_day = st.number_input("Palitos/día", value=3.4, min_value=0.1, step=0.1, 
+                                            help="Unidades de palitos vendidas por día")
+            conos_per_day = st.number_input("Conos/día", value=3.0, min_value=0.1, step=0.1,
+                                          help="Unidades de conos vendidas por día")
+            vasitos_per_day = st.number_input("Vasitos/día", value=2.0, min_value=0.1, step=0.1,
+                                            help="Unidades de vasitos vendidas por día")
+        
+        with col2:
+            st.markdown("**🥄 Helados por Kilos**")
+            potes_kg_per_day = st.number_input("Potes (kg)/día", value=1.1, min_value=0.1, step=0.1,
+                                             help="Kilos de helado en potes vendidos por día")
+            helado_premium_kg_per_day = st.number_input("Premium (kg)/día", value=0.6, min_value=0.1, step=0.1,
+                                                       help="Kilos de helado premium vendidos por día")
+        
+        with col3:
+            st.markdown("**📊 Resumen Semanal**")
+            total_palitos_week = palitos_per_day * 7
+            total_conos_week = conos_per_day * 7
+            total_potes_week = potes_kg_per_day * 7
+            st.metric("Palitos/semana", f"{total_palitos_week:.1f}")
+            st.metric("Conos/semana", f"{total_conos_week:.1f}")
+            st.metric("Potes (kg)/semana", f"{total_potes_week:.1f}")
+        
+        # Crear el diccionario de demanda base
+        base_demand = {
+            "palitos_u_per_day": palitos_per_day,
+            "conos_u_per_day": conos_per_day,
+            "vasitos_u_per_day": vasitos_per_day,
+            "potes_kg_per_day": potes_kg_per_day,
+            "helado_premium_kg_per_day": helado_premium_kg_per_day
+        }
+        
+        st.divider()
+        
+        # Validación y guardado
+        if st.button("💾 Guardar Configuración de Tienda", type="primary", use_container_width=True):
+            # Validaciones
+            errors = []
+            if not name.strip():
+                errors.append("❌ El nombre de la tienda es obligatorio")
+            if not city.strip():
+                errors.append("❌ La ciudad es obligatoria")
+            if not country.strip():
+                errors.append("❌ El país es obligatorio")
+            if not (-90 <= lat <= 90):
+                errors.append("❌ La latitud debe estar entre -90 y 90")
+            if not (-180 <= lon <= 180):
+                errors.append("❌ La longitud debe estar entre -180 y 180")
+            
+            if errors:
+                for error in errors:
+                    ui_components.render_error_message(error)
+            else:
+                try:
+                    # Crear store y guardar
+                    store = Store(
+                        name=name.strip(),
+                        lat=lat,
+                        lon=lon,
+                        city=city.strip(),
+                        country=country.strip(),
+                        base_demand=base_demand
+                    )
+                    
+                    store_id = db_service.save_store(store)
+                    ui_components.render_success_message(
+                        "🎉 ¡Tienda configurada exitosamente!",
+                        balloons=True
+                    )
+                    
+                    # Limpiar la ubicación detectada
+                    if 'detected_location' in st.session_state:
+                        del st.session_state.detected_location
+                    
+                    ui_components.render_info_message(
+                        "💡 Ahora puedes ir a 'Generar Sugerencia' para obtener recomendaciones inteligentes."
+                    )
+                    
+                except Exception as e:
+                    ui_components.render_error_message(f"❌ Error al guardar la tienda: {e}")
+    
+    @staticmethod
+    def view_stores_page():
+        """Página para ver tiendas registradas"""
+        st.header("📍 Tiendas Registradas")
+        
+        stores = db_service.get_stores()
+        
+        if not stores:
+            ui_components.render_info_message("🏪 No hay tiendas registradas aún.")
+            st.markdown("""
+            ### 👋 ¡Parece que es tu primera vez aquí!
+            
+            Para comenzar a usar el sistema de sugerencias inteligente:
+            
+            1. 🏪 Ve a **"Configurar Tienda"** para registrar tu primera heladería
+            2. 🤖 Luego podrás generar sugerencias personalizadas
+            3. 📊 Y ver el historial de todas tus sugerencias
+            
+            ¡Es muy fácil y rápido!
+            """)
+        else:
+            st.markdown(f"**📊 Total de tiendas:** {len(stores)}")
+            
+            # Mostrar tiendas en tarjetas
+            for store in stores:
+                ui_components.render_store_card(store)
+    
+    @staticmethod
+    def generate_suggestion_page():
+        """Página para generar sugerencias"""
+        st.header("🤖 Generar Sugerencia Semanal")
+        
+        stores = db_service.list_stores()
+        
+        if not stores:
+            ui_components.render_info_message("Registra primero una tienda.")
+            return
+        
+        # Selector de tienda
+        st.subheader("🏪 Selecciona tu Tienda")
+        store_options = {store.id: f"{store.name} ({store.city})" for store in stores}
+        selected_store_id = st.selectbox(
+            "Tienda:",
+            options=list(store_options.keys()),
+            format_func=lambda x: store_options[x]
+        )
+        
+        selected_store = next(s for s in stores if s.id == selected_store_id)
+        
+        # Selector de estrategia
+        strategy = ui_components.render_strategy_selector()
+        
+        # Opciones avanzadas
+        with st.expander("⚙️ Opciones Avanzadas"):
+            st.markdown("**Fuente de Datos Meteorológicos:**")
+            weather_source = st.radio(
+                "Fuente:",
+                ["OpenWeatherMap (Recomendado)", "Infoclima (Experimental)"],
+                index=0
+            )
+            
+            show_charts = st.checkbox("📊 Mostrar gráficos detallados", value=True)
+        
+        # Botón para generar
+        if st.button("🚀 Generar Sugerencia Inteligente", type="primary", use_container_width=True):
+            with st.spinner("🤖 Analizando clima, demanda y generando sugerencias..."):
+                try:
+                    # Obtener pronóstico meteorológico
+                    forecast = weather_service.get_weekly_forecast(selected_store.lat, selected_store.lon)
+                    
+                    if not forecast:
+                        ui_components.render_error_message("❌ No se pudo obtener el pronóstico meteorológico")
+                        return
+                    
+                    # Generar sugerencia
+                    suggestion = suggestion_engine.generate_weekly_suggestion(
+                        selected_store, forecast, strategy
+                    )
+                    
+                    # Guardar en base de datos
+                    suggestion_id = db_service.save_suggestion(suggestion)
+                    
+                    # Mostrar resultados
+                    Pages._display_suggestion_results(suggestion, forecast, show_charts)
+                    
+                    ui_components.render_success_message(
+                        "✅ Sugerencia generada y guardada en el historial",
+                        balloons=True
+                    )
+                    
+                except Exception as e:
+                    ui_components.render_error_message(f"❌ Error generando sugerencia: {e}")
+    
+    @staticmethod
+    def history_analytics_page():
+        """Página de historial y análisis"""
+        st.header("📈 Historial & Analytics")
+        
+        # Tabs para diferentes vistas
+        tab1, tab2, tab3 = st.tabs(["📋 Historial", "📊 Analytics", "📈 Tendencias"])
+        
+        with tab1:
+            Pages._display_suggestions_history()
+        
+        with tab2:
+            Pages._display_analytics()
+        
+        with tab3:
+            Pages._display_trends()
+    
+    @staticmethod
+    def _display_suggestion_results(suggestion, forecast, show_charts=True):
+        """Muestra los resultados de una sugerencia"""
+        # Resumen principal
+        ui_components.render_suggestion_summary(suggestion)
+        
+        st.divider()
+        
+        # Productos sugeridos
+        st.subheader("🛍️ Productos Sugeridos")
+        ui_components.render_products_table(suggestion.products)
+        
+        st.divider()
+        
+        # Explicación
+        st.subheader("🤖 Explicación de la IA")
+        st.markdown(suggestion.explanation)
+        
+        # Gráficos si están habilitados
+        if show_charts:
+            st.divider()
+            st.subheader("📊 Análisis Meteorológico")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                ui_components.render_weather_chart(forecast)
+            with col2:
+                ui_components.render_demand_factors_chart(forecast)
+    
+    @staticmethod
+    def _display_suggestions_history():
+        """Muestra el historial de sugerencias"""
+        suggestions = db_service.get_all_suggestions(limit=20)
+        
+        if not suggestions:
+            ui_components.render_info_message("No hay sugerencias guardadas aún.")
+            return
+        
+        st.markdown(f"**📊 Total de sugerencias:** {len(suggestions)}")
+        
+        for suggestion in suggestions:
+            with st.expander(f"🏪 {suggestion['store_name']} - {suggestion['week_start']} - {suggestion['strategy'].title()}"):
+                
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("💰 Inversión", f"₱{suggestion['total_investment']:,.0f}")
+                with col2:
+                    st.metric("📈 ROI", f"{suggestion['roi_percentage']:.1f}%")
+                with col3:
+                    st.metric("⚠️ Riesgo", suggestion['risk_level'].title())
+                
+                st.markdown("**🤖 Explicación:**")
+                st.write(suggestion['explanation'])
+                
+                st.markdown("**📅 Generada:** " + suggestion['created_at'])
+    
+    @staticmethod
+    def _display_analytics():
+        """Muestra analytics generales"""
+        suggestions = db_service.get_all_suggestions()
+        stores = db_service.list_stores()
+        
+        if not suggestions:
+            ui_components.render_info_message("No hay datos suficientes para analytics.")
+            return
+        
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric("🏪 Tiendas Totales", len(stores))
+        
+        with col2:
+            st.metric("📋 Sugerencias Generadas", len(suggestions))
+        
+        with col3:
+            avg_roi = sum(s['roi_percentage'] for s in suggestions) / len(suggestions)
+            st.metric("📊 ROI Promedio", f"{avg_roi:.1f}%")
+        
+        with col4:
+            total_investment = sum(s['total_investment'] for s in suggestions)
+            st.metric("💰 Inversión Total", f"₱{total_investment:,.0f}")
+    
+    @staticmethod
+    def _display_trends():
+        """Muestra tendencias y análisis avanzados"""
+        ui_components.render_info_message("🚧 Análisis de tendencias próximamente disponible")
+
+
+# Instancia global de páginas
+pages = Pages()
